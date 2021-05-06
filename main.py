@@ -4,9 +4,11 @@ import numpy as np
 from scipy.io import wavfile
 import scipy.signal as signal
 
+#TODO: Change doxygen style to python one.
+
 #--------------------------------------------------------------------------
 # defines (constants)
-MINIMUM_MICROPHONES_IN_ARRAY = 8
+MINIMUM_MICROPHONES_IN_ARRAY = 8 #not tested for less than 8
 
 #--------------------------------------------------------------------------
 # constants
@@ -14,8 +16,9 @@ MINIMUM_MICROPHONES_IN_ARRAY = 8
 class constants:
     log_verbose_mode = 1
 
-    folder_with_audio_to_read_from = "../Database/tensorflow_recognition_challenge/train/audio/bed"
+    folder_with_audio_to_read_from = "../../Database/tensorflow_recognition_challenge/train/audio/bed"
     generated_audio_path = "./generated_audio"
+    temporal_shifting_samplerate = 192000
 
     speed_of_sound_in_air = 343
 
@@ -45,28 +48,13 @@ def LOG(datastring, log_type):
     return
 
 '''
-    @brief Resamples audio to particular sampling rate
-    @param [in] input_path - path to input .wav file
-    @param [in] output_path - path to output .wav file
-    @param [in] final_sampling_rate - sampling rate to which function converts (@param input_path) .wav audio.
-'''
-def resample_specific_audio(input_path, output_path, final_sampling_rate):
-    # Read file
-    audiofile_samplerate, audiofile_data_original = wavfile.read(input_path)
-
-    # Resample file to (@param [in] final_sampling_rate).
-    audiofile_number_of_samples = round(len(audiofile_data_original) * float(final_sampling_rate) / audiofile_samplerate)
-    audiofile_data_resampled = signal.resample(audiofile_data_original, audiofile_number_of_samples).astype(np.int16)
-    wavfile.write(output_path, final_sampling_rate, audiofile_data_resampled)
-
-'''
     @brief Creates folder for storaging generated audio files
 '''
 def create_generated_audio_folder():
     try:
-        os.mkdir(generated_audio_path)
+        os.mkdir(constants.generated_audio_path)
     except OSError as error:
-        print("Folder: generated_audio already created")
+        LOG("Folder: \"generated_audio\" already created", log_type.LOG_INFO)
 
 #--------------------------------------------------------------------------
 
@@ -156,26 +144,123 @@ def calculate_shift_for_all_microphones(mic_num, matrix_radius, wave_angle, wave
         sampleshift_array = np.append(sampleshift_array, round(calculate_sample_shift_from_length_shift(i, wave_samplerate)))
 
     LOG("Computed shift in samples for each microphone:\n" + np.array_str(sampleshift_array), log_type.LOG_INFO)
-    return
+    return sampleshift_array
 
+class audio_functions:
+    '''
+        @brief Resamples audio to particular sampling rate
+        @param [in] input_path - path to input .wav file
+        @param [in] output_path - path to output .wav file
+        @param [in] final_sampling_rate - sampling rate to which function converts (@param input_path) .wav audio.
+    '''
+    def resample_specific_audio(input_path, output_path, final_sampling_rate):
+        # Read file
+        audiofile_samplerate, audiofile_data_original = wavfile.read(input_path)
+
+        # Resample file to (@param [in] final_sampling_rate).
+        audiofile_number_of_samples = round(len(audiofile_data_original) * float(final_sampling_rate) / audiofile_samplerate)
+        audiofile_data_resampled = signal.resample(audiofile_data_original, audiofile_number_of_samples).astype(np.int16)
+        wavfile.write(output_path, final_sampling_rate, audiofile_data_resampled)
+        LOG("Audio " + str(input_path) + " resampled from " + str(audiofile_samplerate) + " to " + str(final_sampling_rate) + ".", log_type.LOG_INFO)
+        return audiofile_samplerate
+        
+    def shift_audio_file(wav_file_to_shift, shift_in_samples, output_wav_file):
+        """
+        Truncates beginning of the WAV file for x samples and adds zeroes to the end.
+
+        Parameters
+        ----------
+        wav_file_to_shift : string
+            Input wav file path.
+        shift_in_samples : int
+            Number of samples to shift.
+        output_wav_file : string
+            Output wav file path.
+        """
+        audiofile_samplerate, audiofile_data_original = wavfile.read(wav_file_to_shift)
+        audiofile_data_original = audiofile_data_original.astype(np.int16)
+        shifted_audio = audiofile_data_original[shift_in_samples:]
+        shifted_audio = np.append(shifted_audio, np.zeros(shift_in_samples).astype(np.int16))
+        #zeros_shift_array = np.zeros(shift_in_samples).astype(np.int16)
+        #shifted_audio = np.append(zeros_shift_array, audiofile_data_original) #TODO: This shouldn't be adding, but deleting some samples.
+        #                                                                      #      crucial, when we'll have to add some noise to audio.
+        #                                                                      #      What about end of file (i.ex. it is 30samples less)
+        wavfile.write(output_wav_file, audiofile_samplerate, shifted_audio)
+        return
+
+    def merge_two_wav_audio_files(first_wav_path, second_wav_path, shift_second_wav=0): #TODO: not tested yet, logs may be added
+        """
+        Merges two audio files (WAV) into one.
+
+        Returns merged data array.
+
+        Parameters
+        ----------
+        first_wav_path : string
+            Path to first WAV file.
+        second_wav_path : string
+            Path to second WAV file.
+        shift_second_wav : int, optional
+            Shift second WAV file for 'x' samples.
+
+        Note
+        ----
+        This function's purpose is to add noise to original audio file.
+
+        If second wav is longer, file is truncated into length of first_wav_path file.
+        """
+        first_wav_samplerate, first_wav_data = wavfile.read(first_wav_path)
+        second_wav_samplerate, second_wav_data = wavfile.read(second_wav_data)
+
+        if (first_wav_samplerate != second_wav_samplerate): #TODO: not tested
+            LOG("Samplerate differs! changing samplerate of second wav.", log_type.LOG_CRITICAL)
+            num_of_samples = round(len(second_wav_samplerate) * float(first_wav_samplerate) / second_wav_samplerate)
+            second_wav_data = signal.resample(second_wav_data, num_of_samples).astype(np.int16)
+            second_wav_samplerate = first_wav_samplerate
+
+        first_wav_data = first_wav_data.np.astype(int16)
+        second_wav_data = second_wav_data.np.astype(int16)
+        if shift_second_wav > 0:
+            zeros_to_append_on_beginning = np.zeros(shift_second_wav).astype(np.int16)
+            np.append(zeros_to_append_on_beginning, second_wav_data)
+            second_wav_data = zeros_to_append_on_beginning
+        if shift_second_wav < 0:
+            second_wav_data = second_wav_data[-shift_second_wav:]
+            np.append(second_wav_data, np.zeros(shift_second_wav).astype(np.int16))
+
+        if len(first_wav_data) < len(second_wav_data):
+            second_wav_data = second_wav_data[:len(first_wav_data)]
+
+        return first_wav_data + second_wav_data
 
 #--------------------------------------------------------------------------
 # API functions
 
-def generate_shifted_audio_files():
-    #generate...
+def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_to_file, path_to_output):
+    LOG("Current directory: " + os.getcwd(), log_type.LOG_DEBUG)
+
+    create_generated_audio_folder()
+    #TODO check if there is output_path + folder + existing file in path_to_file 
+
+    shifting_array = calculate_shift_for_all_microphones(mic_num, 0.034, audiowave_angle, constants.temporal_shifting_samplerate)
+
+    #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array!
+    original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file + "/00f0204f_nohash_0.wav", constants.generated_audio_path + "/resampled.temp", constants.temporal_shifting_samplerate)
+    for i in range(len(shifting_array)):
+        audio_functions.shift_audio_file(constants.generated_audio_path + "/resampled.temp", shifting_array[i], constants.generated_audio_path + "/resampled_" + str(i + 1) +".temp")
+        audio_functions.resample_specific_audio(constants.generated_audio_path + "/resampled_" + str(i + 1) + ".temp", constants.generated_audio_path + "/mic_" + str(i + 1) + ".wav", original_audio_samplerate)
+        os.remove(constants.generated_audio_path + "/resampled_" + str(i + 1) + ".temp")
+    
+    os.remove(constants.generated_audio_path + "/resampled.temp")
     return
 
 def main():
-    #create_generated_audio_folder()
+    #8 mics, 68mm diameter
+    generate_shifted_audio_files(8, 0.034, 90, constants.folder_with_audio_to_read_from, constants.generated_audio_path)
+    
     ## os.chdir(folder_with_audio_to_read_from)
-    #print("Current directory: " + os.getcwd())
-    #resample_specific_audio("../Database/tensorflow_recognition_challenge/train/audio/bed/00f0204f_nohash_0.wav", generated_audio_path + "/test.wav", 44100)
+    #resample_specific_audio("../../Database/tensorflow_recognition_challenge/train/audio/bed/00f0204f_nohash_0.wav", generated_audio_path + "/test.wav", 44100)
     #resample_specific_audio(generated_audio_path + "/test.wav", generated_audio_path + "/test_resampled_again.wav", 16000)
 
-##TESTS
-    #8 mics, 68mm diameter, waveangle 0*, samplerate 44100
-    calculate_shift_for_all_microphones(8, 0.034, 0, 44100)
-    
 if __name__ == '__main__':
     main()
