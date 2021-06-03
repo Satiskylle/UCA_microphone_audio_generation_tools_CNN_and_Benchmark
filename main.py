@@ -3,6 +3,7 @@ import math
 import numpy as np
 from scipy.io import wavfile
 import scipy.signal as signal
+import sys
 
 #TODO: Change doxygen style to python one.
 
@@ -18,7 +19,7 @@ class constants:
 
     folder_with_audio_to_read_from = "../../Database/tensorflow_recognition_challenge/train/audio/bed"
     generated_audio_path = "./generated_audio"
-    temporal_shifting_samplerate = 192000
+    temporal_shifting_samplerate = 16000#64000#192000
 
     speed_of_sound_in_air = 343
 
@@ -89,7 +90,7 @@ def check_parameters_validity(mic_num, matrix_radius, sec_mic, wave_angle):
 '''
 def calculate_audio_length_arrival_shift_between_two_microphones_for_specific_doa(mic_num, matrix_radius, sec_mic, wave_angle):
     if (check_parameters_validity(mic_num, matrix_radius, sec_mic, wave_angle) == False):
-        return 0.0
+        sys.exit()
 
     alpha = (sec_mic - 1) * (360 / mic_num)
     gamma = (180 - alpha) / 2
@@ -242,7 +243,7 @@ def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_t
     create_generated_audio_folder()
     #TODO check if there is output_path + folder + existing file in path_to_file 
 
-    shifting_array = calculate_shift_for_all_microphones(mic_num, 0.034, audiowave_angle, constants.temporal_shifting_samplerate)
+    shifting_array = calculate_shift_for_all_microphones(mic_num, matrix_radius, audiowave_angle, constants.temporal_shifting_samplerate)
 
     #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array!
     original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file + "/00f0204f_nohash_0.wav", constants.generated_audio_path + "/resampled.temp", constants.temporal_shifting_samplerate)
@@ -256,7 +257,7 @@ def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_t
 
 def main():
     #8 mics, 68mm diameter
-    generate_shifted_audio_files(8, 0.034, 90, constants.folder_with_audio_to_read_from, constants.generated_audio_path)
+    generate_shifted_audio_files(8, 0.034, 34, constants.folder_with_audio_to_read_from, constants.generated_audio_path)
     
     ## os.chdir(folder_with_audio_to_read_from)
     #resample_specific_audio("../../Database/tensorflow_recognition_challenge/train/audio/bed/00f0204f_nohash_0.wav", generated_audio_path + "/test.wav", 44100)
