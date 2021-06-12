@@ -19,7 +19,7 @@ class constants:
 
     folder_with_audio_to_read_from = "../../Database/tensorflow_recognition_challenge/train/audio/bed"
     generated_audio_path = "./generated_audio"
-    temporal_shifting_samplerate = 16000#64000#192000
+    temporal_shifting_samplerate = 192000
 
     speed_of_sound_in_air = 343
 
@@ -257,7 +257,7 @@ def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_t
 
 def main():
     #8 mics, 68mm diameter
-    generate_shifted_audio_files(8, 0.034, 34, constants.folder_with_audio_to_read_from, constants.generated_audio_path)
+    generate_shifted_audio_files(8, 0.034, 22.5, constants.folder_with_audio_to_read_from, constants.generated_audio_path)
     
     ## os.chdir(folder_with_audio_to_read_from)
     #resample_specific_audio("../../Database/tensorflow_recognition_challenge/train/audio/bed/00f0204f_nohash_0.wav", generated_audio_path + "/test.wav", 44100)
