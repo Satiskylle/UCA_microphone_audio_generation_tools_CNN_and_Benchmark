@@ -6,6 +6,7 @@ import scipy.signal as signal
 from pysndfx import AudioEffectsChain
 import sys
 from tqdm import tqdm
+import random
 
 #TODO: Change doxygen style to python one.
 
@@ -20,7 +21,7 @@ class constants:
     log_verbose_mode = 0
 
     folder_with_audio_to_read_from = "./Database/tensorflow_recognition_challenge/train/audio/bed"
-    generated_audio_path = "./generated_audio"
+    generated_audio_path = "/generated_audio"
     temporal_shifting_samplerate = 192000
 
     speed_of_sound_in_air = 343
@@ -53,9 +54,9 @@ def LOG(datastring, log_type):
 '''
     @brief Creates folder for storaging generated audio files
 '''
-def create_generated_audio_folder():
+def create_folder(path):
     try:
-        os.mkdir(constants.generated_audio_path)
+        os.mkdir(path)
     except OSError as error:
         LOG("Folder: \"generated_audio\" already created", log_type.LOG_INFO)
 
@@ -252,13 +253,13 @@ def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_t
     shifting_array = calculate_shift_for_all_microphones(mic_num, matrix_radius, audiowave_angle, constants.temporal_shifting_samplerate)
 
     #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array!
-    original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file, constants.generated_audio_path + "/resampled.temp", constants.temporal_shifting_samplerate)
+    original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file, "." + path_to_output + "/resampled.temp", constants.temporal_shifting_samplerate)
     for i in range(len(shifting_array)):
-        audio_functions.shift_audio_file(constants.generated_audio_path + "/resampled.temp", shifting_array[i], constants.generated_audio_path + "/resampled_" + str(i + 1) +".temp")
-        audio_functions.resample_specific_audio(constants.generated_audio_path + "/resampled_" + str(i + 1) + ".temp", constants.generated_audio_path + "/mic_" + str(i + 1) + ".wav", original_audio_samplerate)
-        os.remove(constants.generated_audio_path + "/resampled_" + str(i + 1) + ".temp")
+        audio_functions.shift_audio_file("." + path_to_output + "/resampled.temp", shifting_array[i], "." + path_to_output + "/resampled_" + str(i + 1) +".temp")
+        audio_functions.resample_specific_audio("." + path_to_output + "/resampled_" + str(i + 1) + ".temp", "." + path_to_output + "/mic_" + str(i + 1) + ".wav", original_audio_samplerate)
+        os.remove("." + path_to_output + "/resampled_" + str(i + 1) + ".temp")
     
-    os.remove(constants.generated_audio_path + "/resampled.temp")
+    os.remove("." + path_to_output + "/resampled.temp")
     return
     
 def generate_info_file(mic_num, matrix_radius, audiowave_angle, reverb, path_to_output):
@@ -271,8 +272,6 @@ def generate_info_file(mic_num, matrix_radius, audiowave_angle, reverb, path_to_
 
 def main():
     #8 mics, 68mm diameter, 90-angle of arrival
-    create_generated_audio_folder()
-
     all_database_folders = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/")
     all_database_list = []
     for i in tqdm(all_database_folders, "Reading all files to compute"):
@@ -282,14 +281,20 @@ def main():
 
     for i in tqdm(all_database_list, "Generating all audios"):
         input_file = "./Database/tensorflow_recognition_challenge/train/audio/" + i
-        reverb = True
+        reverb = random.randrange(0, 2, 1) #0 or 1
+        arrival_angle = random.randint(0, 359)
+        outputfolder = i.split(".")
+        outputfolder = outputfolder[0]
+
+        create_folder("generated_audio/" + outputfolder)
+
         if (reverb):
-            prepare_audio_signal(input_file, constants.generated_audio_path + i + "/reverbed.wav")
-            generate_shifted_audio_files(8, 0.034, 90, constants.generated_audio_path + i + "/reverbed.wav", constants.generated_audio_path + i)
+            prepare_audio_signal(input_file, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav")
+            generate_shifted_audio_files(8, 0.034, arrival_angle, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav", constants.generated_audio_path + "/" + outputfolder)
         else:
-            generate_shifted_audio_files(8, 0.034, 90, input_file, constants.generated_audio_path + i)
+            generate_shifted_audio_files(8, 0.034, arrival_angle, input_file, constants.generated_audio_path + "/" + outputfolder)
     
-        generate_info_file(8, 0.068, 90, reverb, constants.generated_audio_path + i)
+        generate_info_file(8, 0.068, arrival_angle, reverb, "." + constants.generated_audio_path + "/" + outputfolder)
 
 
 if __name__ == '__main__':
