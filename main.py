@@ -214,7 +214,7 @@ class audio_functions:
         If second wav is longer, file is truncated into length of first_wav_path file.
         """
         first_wav_samplerate, first_wav_data = wavfile.read(first_wav_path)
-        second_wav_samplerate, second_wav_data = wavfile.read(second_wav_data)
+        second_wav_samplerate, second_wav_data = wavfile.read(second_wav_path)
 
         if (first_wav_samplerate != second_wav_samplerate): #TODO: not tested
             LOG("Samplerate differs! changing samplerate of second wav.", log_type.LOG_CRITICAL)
@@ -270,8 +270,20 @@ def generate_info_file(mic_num, matrix_radius, audiowave_angle, reverb, path_to_
     f.write(str(reverb) + "\n")
     f.close()
 
+'''
+    Generates N audio files, for each microphone.
+
+    Note
+    ----
+    This function's purpose is to add noise to original audio file.
+
+    If second wav is longer, file is truncated into length of first_wav_path file.
+'''
 def main():
-    #8 mics, 68mm diameter, 90-angle of arrival
+    #8 mics, 68mm diameter, ?(random)-angle of arrival, ?random reverb
+    microphones = 8
+    uca_radius = 0.034
+
     all_database_folders = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/")
     all_database_list = []
     for i in tqdm(all_database_folders, "Reading all files to compute"):
@@ -284,45 +296,20 @@ def main():
         reverb = random.randrange(0, 2, 1) #0 or 1
         arrival_angle = random.randint(0, 359)
         outputfolder = i.split(".")
+        folder_name = outputfolder[0].split("/")
         outputfolder = outputfolder[0]
 
+        create_folder("generated_audio/" + folder_name[0])
         create_folder("generated_audio/" + outputfolder)
 
         if (reverb):
             prepare_audio_signal(input_file, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav")
-            generate_shifted_audio_files(8, 0.034, arrival_angle, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav", constants.generated_audio_path + "/" + outputfolder)
+            generate_shifted_audio_files(microphones, uca_radius, arrival_angle, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav", constants.generated_audio_path + "/" + outputfolder)
         else:
-            generate_shifted_audio_files(8, 0.034, arrival_angle, input_file, constants.generated_audio_path + "/" + outputfolder)
+            generate_shifted_audio_files(microphones, uca_radius, arrival_angle, input_file, constants.generated_audio_path + "/" + outputfolder)
     
-        generate_info_file(8, 0.068, arrival_angle, reverb, "." + constants.generated_audio_path + "/" + outputfolder)
+        generate_info_file(microphones, uca_radius, arrival_angle, reverb, "." + constants.generated_audio_path + "/" + outputfolder)
 
 
 if __name__ == '__main__':
     main()
-
-
-
-
-    #OLD MAIN
-    #    folder_with_audio_to_read_from = "./Database/tensorflow_recognition_challenge/train/audio/bed"
-
-        # def main():
-        # #8 mics, 68mm diameter, 90-angle of arrival
-        # create_generated_audio_folder()
-
-        # all_database_folders = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/")
-        # all_database_list = []
-        # for i in tqdm(all_database_folders, "Reading all files to compute"):
-        #     database_list = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/" + i)
-        #     for a in database_list:
-        #         all_database_list.append(str(i) + "/" + a)
-
-        # input_file = constants.folder_with_audio_to_read_from + "/00f0204f_nohash_0.wav"
-        # reverb = True
-        # if (reverb):
-        #     prepare_audio_signal(input_file, constants.generated_audio_path + "/reverbed.wav")
-        #     generate_shifted_audio_files(8, 0.034, 90, constants.generated_audio_path + "/reverbed.wav", constants.generated_audio_path)
-        # else:
-        #     generate_shifted_audio_files(8, 0.034, 90, input_file, constants.generated_audio_path)
-        
-        # generate_info_file(8, 0.068, 90, constants.generated_audio_path)
