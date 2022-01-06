@@ -8,28 +8,44 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
 
+import tqdm #Import progressbar
+
+
 # import sklearn
 # from sklearn import datasets
 # from sklearn import svm
 # from sklearn import metrics
 
-def load_dataset():
-  f = open("generated_audio/bed/0a7c2a8d_nohash_0/info.txt", 'r')
+class Dataset:
+  quasi_mic_samples_img = []  #this should be full 44100x8 image
+  batches = []                #this should be divided quasi_mic_samples_img -> i.ex. 100x441x8
+                              #now, it is 441samples_ch_0, 441samples_ch_1, 441samples_ch_2...
+                              #   ...next 441_samples_ch_0, 441_samples_ch1,
+  target = []
+
+def load_dataset(filepath_to_open):
+  f = open(filepath_to_open + "/info.txt", 'r')
   mics = int(f.readline())
   matrix_radius = float(f.readline())
   doa = int(f.readline()) // (360//mics)
   f.close()
 
-  class Dataset:
+  class Dataset_part:
     quasi_mic_samples_img = []  #this should be full 44100x8 image
     batches = []                #this should be divided quasi_mic_samples_img -> i.ex. 100x441x8
                                 #now, it is 441samples_ch_0, 441samples_ch_1, 441samples_ch_2...
                                 #   ...next 441_samples_ch_0, 441_samples_ch1,
     target = []
 
-  dataset = Dataset()
+  dataset = Dataset_part()
+
   for k in range(0, mics):
-    samplerate, data = wavfile.read("./generated_audio/bed/0a7c2a8d_nohash_0/mic_" + str(k + 1) + ".wav")
+    samplerate, data = wavfile.read(filepath_to_open + "/mic_" + str(k + 1) + ".wav")
+    if (samplerate != len(data)):
+      #data is corrupted, only 1second samples are allowed for input.
+      print(filepath_to_open + "/mic_" + str(k + 1) + ".wav" + " is corrupted.")
+      return
+
     dataset.quasi_mic_samples_img.append(data)
     dataset.target.append(doa)
 
@@ -44,8 +60,10 @@ def load_dataset():
     #                       CH7 - 441 samples,                     CH7 - 441 samples,
     #
     #PL: Ok, jest 100 kawałków które maja 8kanałow po kolei posiadajace po 441 probek
-  dataset.batches = np.asarray(dataset.batches) #make batches an array
-  dataset.batches = dataset.batches.reshape(100, 8, 441, 1)#, order='F')
+  dataset.batches = np.asarray(dataset.batches)   #, dtype = np.int16) #make batches an array
+  dataset.batches = dataset.batches.reshape(100, mics, 441, 1)    #, order='F')
+
+  #if the size of everry mic is not 44100, there is exception. Dtype is not np.int16 but 'O'. This bug must be fixed.
   return dataset
 
 def show_results(history, epochs):
@@ -73,7 +91,25 @@ def show_results(history, epochs):
 
 
 def main():
-  dataset = load_dataset()
+
+  list_of_audios = list()
+  #list_of_audios.append("generated_audio/bed/0a7c2a8d_nohash_0")
+  #list_of_audios.append("generated_audio/bed/0b09edd3_nohash_0") #corrupted & fixed
+  #list_of_audios.append("generated_audio/bed/0b56bcfe_nohash_0")
+  #list_of_audios.append("generated_audio/bed/0b77ee66_nohash_0")
+  list_of_audios.append("generated_audio/bed/0b77ee66_nohash_1")  #corrupted - not fixed yet
+  #list_of_audios.append("generated_audio/bed/0b77ee66_nohash_2")
+  #list_of_audios.append("generated_audio/bed/0bde966a_nohash_0")
+
+  dataset_total = Dataset()
+  for audio in list_of_audios:
+    dataset = load_dataset(audio)
+    if (dataset is None):
+      continue
+
+    dataset_total.batches = np.append(dataset_total.batches, dataset.batches)
+    dataset_total.target = np.append(dataset_total.target, dataset.target)
+
   model = keras.Sequential()
   
   #batch 441, 100 rows, 8 cols, 1 channel, so there is 100 samples with 8 channel each,  
@@ -117,7 +153,8 @@ def main():
   #  y_train = y_train[:-1000]
 
   epochs = 20
-  history = model.fit(x = x_train, y = y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size = 100, verbose = 1)
+  #history = model.fit(x = x_train, y = y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size = 100, verbose = 1)
+  history = model.fit(x = x_train, y = y_train, validation_split = 0.1, epochs=epochs, batch_size = 100, verbose = 1)
 
   show_results(history, epochs)
 
