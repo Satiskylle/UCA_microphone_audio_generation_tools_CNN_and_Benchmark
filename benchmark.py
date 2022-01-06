@@ -50,7 +50,7 @@ def prepare_signal(microphones=8, noise_dbm = 100, reverbation = 0):
     rec_signal = []
 
     for i in range(1, microphones + 1):
-        audiofile_samplerate, audiofile_data_original = wavfile.read("./generated_audio/mic_" + str(i) + ".wav")
+        audiofile_samplerate, audiofile_data_original = wavfile.read("./generated_audio/bed/0a7c2a8d_nohash_0/mic_" + str(i) + ".wav")
         rec_signal.append(audiofile_data_original)
         
     #SCALING SIGNAL TO -1; 1
@@ -188,8 +188,8 @@ def compute_doa_via_neural_network(signal, microphones, radius):
 # ---------------------------------------------------------------------------------------------------------
 
 def main():
-    microphones, radius, realdoa = read_info_file("./generated_audio/info.txt")
-    signal, signal_samplerate = prepare_signal(microphones, 6)
+    microphones, radius, realdoa = read_info_file("./generated_audio/bed/0a7c2a8d_nohash_0/info.txt")
+    signal, signal_samplerate = prepare_signal(microphones, 0)
     plt.figure(2)
     plt.subplot(3, 1, 1)
     compute_doa_via_MUSIC(signal, microphones, radius, realdoa)
@@ -201,12 +201,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
 
 
 
