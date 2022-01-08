@@ -46,7 +46,7 @@ def add_noise_to_signal(rec_signal, noise, wanted_snr):
     return rec_signal + noised_signal, SNR #return noised original signal and computed snr
 
 
-def prepare_signal(microphones=8, noise_dbm = 100, reverbation = 0):
+def prepare_signal(microphones=8, noise_dbm = 0, reverbation = 0):
     rec_signal = []
 
     for i in range(1, microphones + 1):

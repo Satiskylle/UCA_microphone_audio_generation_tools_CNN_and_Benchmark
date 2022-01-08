@@ -244,7 +244,7 @@ def prepare_audio_signal(path_to_file, path_to_output):
     fx = (AudioEffectsChain().reverb())
     fx(path_to_file, path_to_output)
 
-def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_to_file, path_to_output):
+def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_to_file, path_to_output, final_audios_samplerate):
     LOG("Current directory: " + os.getcwd(), log_type.LOG_DEBUG)
 
     # create_generated_audio_folder()
@@ -254,9 +254,12 @@ def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_t
 
     #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array!
     original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file, "." + path_to_output + "/resampled.temp", constants.temporal_shifting_samplerate)
+    if (final_audios_samplerate == 0): #If final_audio_samplerate set to zero, return to original sampling
+        final_audios_samplerate = original_audio_samplerate
+    
     for i in range(len(shifting_array)):
         audio_functions.shift_audio_file("." + path_to_output + "/resampled.temp", shifting_array[i], "." + path_to_output + "/resampled_" + str(i + 1) +".temp")
-        audio_functions.resample_specific_audio("." + path_to_output + "/resampled_" + str(i + 1) + ".temp", "." + path_to_output + "/mic_" + str(i + 1) + ".wav", original_audio_samplerate)
+        audio_functions.resample_specific_audio("." + path_to_output + "/resampled_" + str(i + 1) + ".temp", "." + path_to_output + "/mic_" + str(i + 1) + ".wav", final_audios_samplerate)
         os.remove("." + path_to_output + "/resampled_" + str(i + 1) + ".temp")
     
     os.remove("." + path_to_output + "/resampled.temp")
@@ -283,6 +286,7 @@ def main():
     #8 mics, 68mm diameter, ?(random)-angle of arrival, ?random reverb
     microphones = 8
     uca_radius = 0.034
+    final_samplerate = 44100
 
     all_database_folders = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/")
     all_database_list = []
@@ -293,7 +297,7 @@ def main():
 
     for i in tqdm(all_database_list, "Generating all audios"):
         input_file = "./Database/tensorflow_recognition_challenge/train/audio/" + i
-        reverb = random.randrange(0, 2, 1) #0 or 1
+        reverb = 0 #random.randrange(0, 2, 1) #0 or 1     ##Set always as false. Reverb is unsupported for now
         arrival_angle = random.randint(0, 359)
         outputfolder = i.split(".")
         folder_name = outputfolder[0].split("/")
@@ -304,9 +308,11 @@ def main():
 
         if (reverb):
             prepare_audio_signal(input_file, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav")
-            generate_shifted_audio_files(microphones, uca_radius, arrival_angle, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav", constants.generated_audio_path + "/" + outputfolder)
+            generate_shifted_audio_files(microphones, uca_radius, arrival_angle, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav",
+                                         constants.generated_audio_path + "/" + outputfolder, final_samplerate)
         else:
-            generate_shifted_audio_files(microphones, uca_radius, arrival_angle, input_file, constants.generated_audio_path + "/" + outputfolder)
+            generate_shifted_audio_files(microphones, uca_radius, arrival_angle, input_file,
+                                         constants.generated_audio_path + "/" + outputfolder, final_samplerate)
     
         generate_info_file(microphones, uca_radius, arrival_angle, reverb, "." + constants.generated_audio_path + "/" + outputfolder)
 

@@ -8,7 +8,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
 
-import tqdm #Import progressbar
+from tqdm import tqdm #Import progressbar
 
 
 # import sklearn
@@ -17,18 +17,35 @@ import tqdm #Import progressbar
 # from sklearn import metrics
 
 class Dataset:
-  quasi_mic_samples_img = []  #this should be full 44100x8 image
-  batches = []                #this should be divided quasi_mic_samples_img -> i.ex. 100x441x8
-                              #now, it is 441samples_ch_0, 441samples_ch_1, 441samples_ch_2...
-                              #   ...next 441_samples_ch_0, 441_samples_ch1,
-  target = []
+  quasi_mic_samples_img = []              #this should be full 44100x8 image
+  batches = np.array([],dtype=np.int32)   #this should be divided quasi_mic_samples_img -> i.ex. 100x441x8
+                                          #now, it is 441samples_ch_0, 441samples_ch_1, 441samples_ch_2...
+                                          #   ...next 441_samples_ch_0, 441_samples_ch1,
+  target = np.array([],dtype=np.int32)
+
+def check_dataset_corruption(samplerate, data, error_description):
+  if (samplerate != len(data)):
+    #data is corrupted, only 1second samples are allowed for input.
+    print(error_description + " Reason: too short")
+    return True
+  if (samplerate != 44100):
+    #data is corrupted, only 44100 sps files are allowed for input.
+    print(error_description + " Reason: bad sampling")
+    return True
+  
+  return False
 
 def load_dataset(filepath_to_open):
   f = open(filepath_to_open + "/info.txt", 'r')
   mics = int(f.readline())
   matrix_radius = float(f.readline())
   doa = int(f.readline()) // (360//mics)
+  reverb = bool(int(f.readline()))
   f.close()
+
+  # reverb files are not supported for now
+  if (reverb == True):
+    return
 
   class Dataset_part:
     quasi_mic_samples_img = []  #this should be full 44100x8 image
@@ -41,14 +58,14 @@ def load_dataset(filepath_to_open):
 
   for k in range(0, mics):
     samplerate, data = wavfile.read(filepath_to_open + "/mic_" + str(k + 1) + ".wav")
-    if (samplerate != len(data)):
-      #data is corrupted, only 1second samples are allowed for input.
-      print(filepath_to_open + "/mic_" + str(k + 1) + ".wav" + " is corrupted.")
-      return
+    if (k == 0): #check only once
+      error_desc = filepath_to_open + "/mic_" + str(k + 1) + ".wav"
+      if check_dataset_corruption(samplerate, data, error_desc):
+        return
 
     dataset.quasi_mic_samples_img.append(data)
-    dataset.target.append(doa)
 
+  dataset.target.append(doa) #add doa if data is not corrupted
   for k in range(0, 100):
     for i in range (0, mics):
       dataset.batches.append(dataset.quasi_mic_samples_img[i][441 * k: 441 * k + 441]) #then, it will be 100x441x8 !
@@ -60,7 +77,7 @@ def load_dataset(filepath_to_open):
     #                       CH7 - 441 samples,                     CH7 - 441 samples,
     #
     #PL: Ok, jest 100 kawałków które maja 8kanałow po kolei posiadajace po 441 probek
-  dataset.batches = np.asarray(dataset.batches)   #, dtype = np.int16) #make batches an array
+  dataset.batches = np.asarray(dataset.batches) #, dtype = np.int32) #make batches an array
   dataset.batches = dataset.batches.reshape(100, mics, 441, 1)    #, order='F')
 
   #if the size of everry mic is not 44100, there is exception. Dtype is not np.int16 but 'O'. This bug must be fixed.
@@ -92,18 +109,12 @@ def show_results(history, epochs):
 
 def main():
 
-  list_of_audios = list()
-  #list_of_audios.append("generated_audio/bed/0a7c2a8d_nohash_0")
-  #list_of_audios.append("generated_audio/bed/0b09edd3_nohash_0") #corrupted & fixed
-  #list_of_audios.append("generated_audio/bed/0b56bcfe_nohash_0")
-  #list_of_audios.append("generated_audio/bed/0b77ee66_nohash_0")
-  list_of_audios.append("generated_audio/bed/0b77ee66_nohash_1")  #corrupted - not fixed yet
-  #list_of_audios.append("generated_audio/bed/0b77ee66_nohash_2")
-  #list_of_audios.append("generated_audio/bed/0bde966a_nohash_0")
+  path = "generated_audio/test_delete_me/"
+  audio_paths_to_load = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
 
   dataset_total = Dataset()
-  for audio in list_of_audios:
-    dataset = load_dataset(audio)
+  for audio in tqdm(audio_paths_to_load):
+    dataset = load_dataset(path + audio)
     if (dataset is None):
       continue
 
@@ -124,7 +135,7 @@ def main():
   model.summary()
   model.add(layers.Flatten())
   model.add(layers.Dense(128, activation='relu'))
-  model.add(layers.Dense(32, activation='relu'))
+  model.add(layers.Dense(32, activation='sigmoid'))
   model.add(layers.Dense(8))
   
 
@@ -136,25 +147,18 @@ def main():
 
 
   # x_train = (np.transpose(dataset.data))
-  x_dataset = dataset.batches.reshape(100, 8, 441, 1) #reshaped data
-  x_train = x_dataset[:-20] # od całosci do przed10 ostatniego
-  #x_test = x_dataset[-20:-10]  # 10 ostatnich
+  total_computed_audios = int(dataset_total.batches.size/441/8/1)
+  x_dataset = dataset_total.batches.reshape(total_computed_audios, 8, 441, 1) #reshaped data #was 100 initialy for 1 computed audio
 
-  y_dataset = np.full((100, 1), 4)
-  y_train = y_dataset[:-20] # wszystkie oprócz 10 ostatnich
-  #y_test = y_dataset[-20:]  # 10 ostatnich
+  y_dataset = []
+  for i in range(0, len(dataset_total.target)):
+    for k in range (0, total_computed_audios // len(dataset_total.target)):
+      y_dataset.append(dataset_total.target[i]) #every 441 samples per 100data there is change of targetDOA
 
-  x_val = x_dataset[-20:] #for now..
-  y_val = y_dataset[-20:]
-  # Reserve X samples for validation
-  #  x_val = x_train[-1000:]
-  #  y_val = y_train[-1000:]
-  #  x_train = x_train[:-1000]
-  #  y_train = y_train[:-1000]
-
-  epochs = 20
+  y_dataset = np.asarray(y_dataset)
+  epochs = 100
   #history = model.fit(x = x_train, y = y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size = 100, verbose = 1)
-  history = model.fit(x = x_train, y = y_train, validation_split = 0.1, epochs=epochs, batch_size = 100, verbose = 1)
+  history = model.fit(x = x_dataset, y = y_dataset, validation_split = 0.2, epochs=epochs, batch_size = 100, verbose = 1)
 
   show_results(history, epochs)
 
