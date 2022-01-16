@@ -35,13 +35,24 @@ def check_dataset_corruption(samplerate, data, error_description):
   
   return False
 
-def load_dataset(filepath_to_open):
-  f = open(filepath_to_open + "/info.txt", 'r')
+def get_info_from_dataset_part_info_file(filepath):
+  #Check if info file exists
+  if (os.path.isfile(filepath + "/info.txt") == False):
+    print("Info file do not exist. Ommiting + " + filepath)
+    return False
+
+  f = open(filepath + "/info.txt", 'r')
   mics = int(f.readline())
   matrix_radius = float(f.readline())
   doa = int(f.readline()) // (360//mics)
   reverb = bool(int(f.readline()))
   f.close()
+  return True, mics, matrix_radius, doa, reverb
+
+def load_dataset_part(filepath_to_open):
+  success, mics, matrix_radius, doa, reverb = get_info_from_dataset_part_info_file(filepath_to_open)
+  if (success == False):
+    return
 
   # reverb files are not supported for now
   if (reverb == True):
@@ -58,7 +69,7 @@ def load_dataset(filepath_to_open):
 
   for k in range(0, mics):
     samplerate, data = wavfile.read(filepath_to_open + "/mic_" + str(k + 1) + ".wav")
-    if (k == 0): #check only once
+    if (k == 0): #check only once - if any of the files is corrupted, first is also.
       error_desc = filepath_to_open + "/mic_" + str(k + 1) + ".wav"
       if check_dataset_corruption(samplerate, data, error_desc):
         return
@@ -77,11 +88,25 @@ def load_dataset(filepath_to_open):
     #                       CH7 - 441 samples,                     CH7 - 441 samples,
     #
     #PL: Ok, jest 100 kawałków które maja 8kanałow po kolei posiadajace po 441 probek
-  dataset.batches = np.asarray(dataset.batches) #, dtype = np.int32) #make batches an array
+  dataset.batches = np.asarray(dataset.batches) #, dtype = np.int32) #make batches an array #should be np.int16
   dataset.batches = dataset.batches.reshape(100, mics, 441, 1)    #, order='F')
 
-  #if the size of everry mic is not 44100, there is exception. Dtype is not np.int16 but 'O'. This bug must be fixed.
+  # If the size of every mic is not 44100, there is exception. Dtype is not np.int16 but 'O'.
   return dataset
+
+def load_dataset(dataset_path):
+  audio_paths_to_load = [f for f in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, f))]
+
+  dataset_total = Dataset()
+  for audio in tqdm(audio_paths_to_load):
+    dataset_part = load_dataset_part(dataset_path + audio)
+    if (dataset_part is None):
+      continue
+
+    dataset_total.batches = np.append(dataset_total.batches, dataset_part.batches)
+    dataset_total.target = np.append(dataset_total.target, dataset_part.target)
+
+  return dataset_total
 
 def show_results(history, epochs):
   acc = history.history['accuracy']
@@ -107,19 +132,9 @@ def show_results(history, epochs):
   plt.show(block=True)
 
 
+
 def main():
-
-  path = "generated_audio/test_delete_me/"
-  audio_paths_to_load = [f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))]
-
-  dataset_total = Dataset()
-  for audio in tqdm(audio_paths_to_load):
-    dataset = load_dataset(path + audio)
-    if (dataset is None):
-      continue
-
-    dataset_total.batches = np.append(dataset_total.batches, dataset.batches)
-    dataset_total.target = np.append(dataset_total.target, dataset.target)
+  dataset_total = load_dataset("generated_audio/test_delete_me/")
 
   model = keras.Sequential()
   
@@ -137,8 +152,6 @@ def main():
   model.add(layers.Dense(128, activation='relu'))
   model.add(layers.Dense(32, activation='sigmoid'))
   model.add(layers.Dense(8))
-  
-
   model.summary()
 
   model.compile(optimizer='adam',
@@ -146,7 +159,6 @@ def main():
               metrics=['accuracy'])
 
 
-  # x_train = (np.transpose(dataset.data))
   total_computed_audios = int(dataset_total.batches.size/441/8/1)
   x_dataset = dataset_total.batches.reshape(total_computed_audios, 8, 441, 1) #reshaped data #was 100 initialy for 1 computed audio
 
@@ -164,19 +176,3 @@ def main():
 
 if __name__ == "__main__":
   main()
-
-
-
-
-  #oldest:
-    # x = dataset.data  #here load all samples from microphones
-  # y = dataset.target #number of angle from which sound has been gotten. classify that to 0-7 (where 0 is 0* to 45* for 8 mics)
-
-  # x_train, x_test, y_train, y_test = sklearn.model_selection.train_test_split(x, y, test_size = 0.2)
-  
-  # clf = svm.SVC() #gamma = 0.001 C= 100 -- test. gamma automaticaly??
-  # clf.fit(x_train, y_train)
-  # y_test_pred = clf.predict(x_test)
-
-  # acc = metrics.accuracy_score(y_test, y_test_pred)
-  # print("Prediction: ", str(acc))
