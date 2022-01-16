@@ -134,28 +134,32 @@ def show_results(history, epochs):
 
 
 def main():
-  dataset_total = load_dataset("generated_audio/test_delete_me/")
+  dataset_total = load_dataset("generated_audio/test_delete_me_2/")
 
   model = keras.Sequential()
   
   #batch 441, 100 rows, 8 cols, 1 channel, so there is 100 samples with 8 channel each,  
-  model.add(layers.Conv2D(160, (8, 1), padding='valid', activation='relu', input_shape=(8, 441, 1))) 
+  model.add(layers.Conv2D(8, (4, 1), padding='valid', activation='relu', input_shape=(8, 441, 1))) #160
+  model.add(layers.MaxPooling2D(pool_size=(1,8)))
+  model.add(layers.Conv2D(4, (2, 1), padding='valid', activation='relu'))  #80
   model.add(layers.MaxPooling2D(pool_size=(1,4)))
-  model.add(layers.Conv2D(80, 1, padding='valid', activation='relu'))
+  model.add(layers.Conv2D(2, 1, padding='valid', activation='relu'))       #20
   model.add(layers.MaxPooling2D(pool_size=(1,4)))
-  model.add(layers.Conv2D(20, 1, padding='valid', activation='relu'))
-  model.add(layers.MaxPooling2D(pool_size=(1,4)))
-  model.add(layers.Conv2D(8, 1, padding='valid', activation='relu'))
+  model.add(layers.Conv2D(8, 1, padding='valid', activation='relu'))        #8
   model.add(layers.MaxPooling2D(pool_size=(1,2)))
   model.summary()
   model.add(layers.Flatten())
   model.add(layers.Dense(128, activation='relu'))
-  model.add(layers.Dense(32, activation='sigmoid'))
-  model.add(layers.Dense(8))
+  # model.add(layers.Dropout(0.2))
+  model.add(layers.Dense(1024, activation='relu'))    #was 1024
+  # model.add(layers.Dropout(0.2))
+  model.add(layers.Dense(512, activation='sigmoid'))  #was 512
+  # model.add(layers.Dropout(0.2))
+  model.add(layers.Dense(8, activation='sigmoid'))
   model.summary()
 
-  model.compile(optimizer='adam',
-              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+  model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),#'adam', LR=0.001 default
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False),
               metrics=['accuracy'])
 
 
@@ -168,9 +172,14 @@ def main():
       y_dataset.append(dataset_total.target[i]) #every 441 samples per 100data there is change of targetDOA
 
   y_dataset = np.asarray(y_dataset)
-  epochs = 100
+  epochs = 10
   #history = model.fit(x = x_train, y = y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size = 100, verbose = 1)
-  history = model.fit(x = x_dataset, y = y_dataset, validation_split = 0.2, epochs=epochs, batch_size = 100, verbose = 1)
+  history = model.fit(x = x_dataset, y = y_dataset, validation_split = 0.25, epochs=epochs, batch_size = 100, verbose = 1)
+
+  to_predict = x_dataset[0:5, 0:8, 0:441, 0] #check first 5 100-chunks
+  to_predict = to_predict.reshape(5,8,441,1)
+  prediction = model.predict(to_predict)
+  print(prediction)
 
   show_results(history, epochs)
 
