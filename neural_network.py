@@ -2,6 +2,7 @@ from ctypes import sizeof
 import os
 import numpy as np
 from scipy.io import wavfile
+import pickle
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
@@ -132,9 +133,27 @@ def show_results(history, epochs):
   plt.show(block=True)
 
 
+def dump_dataset(object_to_dump, dump_filename = ".dumped_dataset"):
+  with open(dump_filename, 'wb') as file:
+    pickle.dump(object_to_dump, file)
+    file.close()
+
+def receive_dumped_object(dump_filename = ".dumped_dataset"):
+  with open(dump_filename, 'rb') as file:
+    object_dumped = pickle.load(file)
+    file.close()
+
+  return object_dumped
 
 def main():
-  dataset_total = load_dataset("generated_audio/test_delete_me_2/")
+  #".superfast_database" - contains ~16 elements  #EXIST
+  #".fast_database" - containst ~100 elements     #DO NOT EXIST
+  #".quite_database" - containst ~425 elements    #EXIST
+
+    #uncomment first two to create database or third to load one.
+  #dataset_total = load_dataset("generated_audio/test_delete_me/")
+  #dump_dataset(dataset_total, ".quite_database")
+  dataset_total = receive_dumped_object(".quite_database")
 
   model = keras.Sequential()
   
@@ -172,16 +191,33 @@ def main():
       y_dataset.append(dataset_total.target[i]) #every 441 samples per 100data there is change of targetDOA
 
   y_dataset = np.asarray(y_dataset)
-  epochs = 10
-  #history = model.fit(x = x_train, y = y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size = 100, verbose = 1)
-  history = model.fit(x = x_dataset, y = y_dataset, validation_split = 0.25, epochs=epochs, batch_size = 100, verbose = 1)
+  epochs = 15
 
-  to_predict = x_dataset[0:5, 0:8, 0:441, 0] #check first 5 100-chunks
-  to_predict = to_predict.reshape(5,8,441,1)
-  prediction = model.predict(to_predict)
-  print(prediction)
+
+  checkpoint_filepath = '/tmp/checkpoint'
+  model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_filepath,
+                                                                  save_weights_only=True,
+                                                                  monitor='val_accuracy',
+                                                                  mode='max',
+                                                                  save_best_only=True)
+  #history = model.fit(x = x_train, y = y_train, validation_data=(x_val, y_val), epochs=epochs, batch_size = 100, verbose = 1)
+  history = model.fit(x = x_dataset, y = y_dataset, validation_split = 0.25, epochs=epochs, batch_size = 100, verbose = 1, callbacks=[model_checkpoint_callback])
 
   show_results(history, epochs)
+
+  #load best weights before prediction
+  model.load_weights(checkpoint_filepath)
+
+  #predict first and last
+  to_predict = x_dataset[0, 0:8, 0:441, 0]
+  to_predict = to_predict.reshape(1,8,441,1)
+  prediction = model.predict(to_predict)
+  print("Is" + str(prediction) + " should be " + str(y_dataset[0]))
+
+  to_predict = x_dataset[-1, 0:8, 0:441, 0]
+  to_predict = to_predict.reshape(1,8,441,1)
+  prediction = model.predict(to_predict)
+  print("Is" + str(prediction) + " should be " + str(y_dataset[-1]))
 
 if __name__ == "__main__":
   main()
