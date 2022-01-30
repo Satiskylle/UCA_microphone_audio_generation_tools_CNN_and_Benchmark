@@ -3,6 +3,7 @@ import os
 import numpy as np
 from scipy.io import wavfile
 import pickle
+import math
 
 from tqdm import tqdm
 
@@ -97,9 +98,19 @@ class nn_database:
     # If the size of every mic is not 44100, there is exception. Dtype is not np.int16 but 'O'.
     return dataset
 
+  def __number_of_dirs(path):
+    return len([f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))])
 
-  def __load_dataset(dataset_path):
+  def __load_dataset_from_dir(dataset_path, start_from=0, dataset_size_to_load=-1):
     audio_paths_to_load = [f for f in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, f))]
+
+    if (dataset_size_to_load == -1):
+      dataset_size_to_load = len(audio_paths_to_load)
+
+    audio_paths_to_load = audio_paths_to_load[start_from:start_from + dataset_size_to_load]
+
+    if (len(audio_paths_to_load) == 0):
+      return
 
     dataset_total = Dataset()
     for audio in tqdm(audio_paths_to_load, desc="Generating neural network dataset", unit=" file structs", leave=False):
@@ -114,6 +125,13 @@ class nn_database:
 
 
   def __dump_dataset(object_to_dump, dump_filename = ".dumped_dataset"):
+    if (str(dump_filename).find('/')):
+      create_dir = str(dump_filename).rpartition('/')
+      try:
+        os.makedirs(create_dir[0])
+      except FileExistsError:
+        pass
+    
     with open(dump_filename, 'wb') as file:
       pickle.dump(object_to_dump, file)
       file.close()
@@ -128,24 +146,30 @@ class nn_database:
     return object_dumped
 
 
-  def create_database_file(generated_audio_files, dataset_pickle_file):
-    dataset_total = nn_database.__load_dataset(generated_audio_files)
-    nn_database.__dump_dataset(dataset_total, dataset_pickle_file)
+  '''
+  Creates database files.
+  If not specified, creates one big database.
+  '''
+  def create_databases(generated_audio_files, dataset_pickle_filename, size_of_databases=-1):
+    num_of_iters = math.ceil(nn_database.__number_of_dirs(generated_audio_files) / size_of_databases)
+    if (num_of_iters < 0):
+      num_of_iters = 1
 
+    for next_database in tqdm(range(0, num_of_iters), desc="Datasets in directory", unit=" datasets", leave=False):
+      dataset_total = nn_database.__load_dataset_from_dir(generated_audio_files, start_from=size_of_databases*next_database, dataset_size_to_load=size_of_databases)
+      if (dataset_total == None):
+        return
 
-import os
+      nn_database.__dump_dataset(dataset_total, dataset_pickle_filename + "_" + str(next_database))
+
 def main():
-  #".superfast_database" - contains ~16 elements    #EXIST
-  #".fast_database" - containst ~100 elements       #DO NOT EXIST
-  #".quite_database" - containst ~425 elements      #EXIST
-  #".normal_database" - containst ~10000 elements   #EXIST
 
   #This is sample
   #dataset_total = nn_database.load_dataset("generated_audio/test_delete_me_3/")
   #nn_database.dump_dataset(dataset_total, ".normal_database")
   dirs = os.listdir("generated_audio/")
-  for i in tqdm(dirs, desc="Total neural network dataset processed"):
-    nn_database.create_database_file("generated_audio/" + i + "/", "generated_audio/" + i + "/.pickled_database")
+  for i in tqdm(dirs, desc="Total neural network dataset processed", unit=" datasets"):
+    nn_database.create_databases("generated_audio/" + i + "/", "X:/generated_audio/" + i + "/.pickled_database", size_of_databases=500)
 
 
 if __name__ == "__main__":

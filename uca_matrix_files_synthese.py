@@ -152,6 +152,24 @@ def calculate_shift_for_all_microphones(mic_num, matrix_radius, wave_angle, wave
 
 class audio_functions:
     '''
+        @brief Edits audio length to specific value
+        @param [in] path - path to .wav file
+        @param [in] length - wanted length of .wav file in s
+    '''
+    def edit_audio_length(path, wav_length=1):
+        try: 
+            audio_samplerate, audio_data = wavfile.read(path)
+            if (len(audio_data) != audio_samplerate * wav_length):
+                number_of_samples_missing = audio_samplerate * wav_length - len(audio_data)
+                if (number_of_samples_missing > 0):
+                    audio_edited = np.append(audio_data, np.zeros(number_of_samples_missing).astype(np.int16))
+                    wavfile.write(path, audio_samplerate, audio_edited)
+
+            return True
+        except:
+            return False
+
+    '''
         @brief Resamples audio to particular sampling rate
         @param [in] input_path - path to input .wav file
         @param [in] output_path - path to output .wav file
@@ -185,6 +203,7 @@ class audio_functions:
         audiofile_data_original = audiofile_data_original.astype(np.int16)
         shifted_audio = audiofile_data_original[shift_in_samples:]
         shifted_audio = np.append(shifted_audio, np.zeros(shift_in_samples).astype(np.int16))
+
         #zeros_shift_array = np.zeros(shift_in_samples).astype(np.int16)
         #shifted_audio = np.append(zeros_shift_array, audiofile_data_original) #TODO: This shouldn't be adding, but deleting some samples.
         #                                                                      #      crucial, when we'll have to add some noise to audio.
@@ -252,7 +271,7 @@ def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_t
 
     shifting_array = calculate_shift_for_all_microphones(mic_num, matrix_radius, audiowave_angle, constants.temporal_shifting_samplerate)
 
-    #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array!
+    #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array! ## it can't be optimized that way!
     original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file, "." + path_to_output + "/resampled.temp", constants.temporal_shifting_samplerate)
     if (final_audios_samplerate == 0): #If final_audio_samplerate set to zero, return to original sampling
         final_audios_samplerate = original_audio_samplerate
@@ -305,6 +324,9 @@ def main():
 
         create_folder("generated_audio/" + folder_name[0])
         create_folder("generated_audio/" + outputfolder)
+
+        #This function is used to fix data when it's length is not 1-second.
+        audio_functions.edit_audio_length(input_file)
 
         if (reverb):
             prepare_audio_signal(input_file, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav")
