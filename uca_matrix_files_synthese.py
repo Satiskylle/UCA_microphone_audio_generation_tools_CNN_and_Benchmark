@@ -8,11 +8,11 @@ import sys
 from tqdm import tqdm
 import random
 
-#TODO: Change doxygen style to python one.
+#TODO: Change doxygen comments into python one
 
 #--------------------------------------------------------------------------
 # defines (constants)
-MINIMUM_MICROPHONES_IN_ARRAY = 8 #not tested for less than 8
+MINIMUM_MICROPHONES_IN_ARRAY = 8 #not tested for other than 8
 
 #--------------------------------------------------------------------------
 # constants
@@ -26,7 +26,7 @@ class constants:
 
     speed_of_sound_in_air = 343
 
-constants = constants
+# constants = constants
 
 class log_type:
     LOG_CRITICAL = 0
@@ -62,9 +62,15 @@ def create_folder(path):
 
 #--------------------------------------------------------------------------
 
+'''
+    @brief Converts angle from degrees into radians
+'''
 def degrees_to_radians(angle):
     return angle * (math.pi / 180)
 
+'''
+    @brief Checks matrix input parameters validity
+'''
 def check_parameters_validity(mic_num, matrix_radius, sec_mic, wave_angle):
     if mic_num < MINIMUM_MICROPHONES_IN_ARRAY:
         LOG(str(mic_num) + " microphones exceeds assert (min " + str(MINIMUM_MICROPHONES_IN_ARRAY) + ")", log_type.LOG_CRITICAL)
@@ -89,7 +95,7 @@ def check_parameters_validity(mic_num, matrix_radius, sec_mic, wave_angle):
     @param [in] matrix_radius - radius of matrix (length between center of matrix and microphone)
     @param [in] sec_mic - second microphone. Must be less than @param mic_num
     @param [in] wave_angle - angle specified in degrees in range <0:360)
-    @return microphones length shift. Value lesser than 0 indicates, that sound firsly arrived to second microphone.
+    @return microphones length shift. Value lesser than 0 indicates, that sound firstly arrived to second microphone.
 '''
 def calculate_audio_length_arrival_shift_between_two_microphones_for_specific_doa(mic_num, matrix_radius, sec_mic, wave_angle):
     if (check_parameters_validity(mic_num, matrix_radius, sec_mic, wave_angle) == False):
@@ -182,6 +188,8 @@ class audio_functions:
         # Resample file to (@param [in] final_sampling_rate).
         audiofile_number_of_samples = round(len(audiofile_data_original) * float(final_sampling_rate) / audiofile_samplerate)
         audiofile_data_resampled = signal.resample(audiofile_data_original, audiofile_number_of_samples).astype(np.int16)
+
+        # Save resampled file and return samplerate
         wavfile.write(output_path, final_sampling_rate, audiofile_data_resampled)
         LOG("Audio " + str(input_path) + " resampled from " + str(audiofile_samplerate) + " to " + str(final_sampling_rate) + ".", log_type.LOG_INFO)
         return audiofile_samplerate
@@ -205,15 +213,16 @@ class audio_functions:
         shifted_audio = np.append(shifted_audio, np.zeros(shift_in_samples).astype(np.int16))
 
         #zeros_shift_array = np.zeros(shift_in_samples).astype(np.int16)
-        #shifted_audio = np.append(zeros_shift_array, audiofile_data_original) #TODO: This shouldn't be adding, but deleting some samples.
-        #                                                                      #      crucial, when we'll have to add some noise to audio.
-        #                                                                      #      What about end of file (i.ex. it is 30samples less)
+        #shifted_audio = np.append(zeros_shift_array, audiofile_data_original) 
+        #                       #  TODO: This shouldn't be adding, but deleting some samples.
+        #                       #  may be crucial, when we'll have to add some noise to audio.
+        #                       #  What about end of file (i.ex. it is 30samples less)
         wavfile.write(output_wav_file, audiofile_samplerate, shifted_audio)
         return
 
     def merge_two_wav_audio_files(first_wav_path, second_wav_path, shift_second_wav=0): #TODO: not tested yet, logs may be added
         """
-        Merges two audio files (WAV) into one.
+        Merges two audio files (WAV) into one. TODO:NOT TESTED
 
         Returns merged data array.
 
@@ -241,8 +250,8 @@ class audio_functions:
             second_wav_data = signal.resample(second_wav_data, num_of_samples).astype(np.int16)
             second_wav_samplerate = first_wav_samplerate
 
-        first_wav_data = first_wav_data.np.astype(int16)
-        second_wav_data = second_wav_data.np.astype(int16)
+        first_wav_data = first_wav_data.np.astype(np.int16)
+        second_wav_data = second_wav_data.np.astype(np.int16)
         if shift_second_wav > 0:
             zeros_to_append_on_beginning = np.zeros(shift_second_wav).astype(np.int16)
             np.append(zeros_to_append_on_beginning, second_wav_data)
@@ -259,31 +268,65 @@ class audio_functions:
 #--------------------------------------------------------------------------
 # API functions
 
-def prepare_audio_signal(path_to_file, path_to_output):
+'''
+    Prepares audio signal for apply'ing reverb. It is depracated and no longer supported (TODO: delete?)
+'''
+def prepare_audio_signal_for_reverb(path_to_file, path_to_output):
     fx = (AudioEffectsChain().reverb())
     fx(path_to_file, path_to_output)
 
+'''
+    Syntheses/Generates audio files for full matrix based on one audio file.
+    Computes shift for all microphones based on number of microphones, matrix radius and audiowave arrival angle.
+
+    Parameters
+    ----------
+    mic_num : int
+        Number of microphones in output matrix.
+    matrix_radius : float
+        Radius of circular array [m].
+    audiowave_angle : int
+        Audiowave arrival angle (degrees from 0 to 359) 0 is north, like azimute.
+    path_to_file : string
+        Path to file [.wav] from which another microphones signals in matrix are computed from.
+    path_to_output : string
+        Path to output folder.
+    final_audios_samplerate : int
+        Final samplerate of all audio files. if set to 0 - Function resamples to original.
+
+    Notes
+    ---
+    Function resamples (upsamples) audio to 192000, computes shifts, shifts, and then again resamples into @final_audios_samplerate
+'''
 def generate_shifted_audio_files(mic_num, matrix_radius, audiowave_angle, path_to_file, path_to_output, final_audios_samplerate):
     LOG("Current directory: " + os.getcwd(), log_type.LOG_DEBUG)
 
-    # create_generated_audio_folder()
-    #TODO check if there is output_path + folder + existing file in path_to_file 
-
+    #Calculate array of shift to apply for all microphones
     shifting_array = calculate_shift_for_all_microphones(mic_num, matrix_radius, audiowave_angle, constants.temporal_shifting_samplerate)
 
-    #Shift all audio files #TODO optimize to not have all in for, and to audio_shift only half of array! ## it can't be optimized that way!
+    #Resample original audio and store as temporary file "resampled.temp"
     original_audio_samplerate = audio_functions.resample_specific_audio(path_to_file, "." + path_to_output + "/resampled.temp", constants.temporal_shifting_samplerate)
     if (final_audios_samplerate == 0): #If final_audio_samplerate set to zero, return to original sampling
         final_audios_samplerate = original_audio_samplerate
     
+    #Shift for all microphones
     for i in range(len(shifting_array)):
         audio_functions.shift_audio_file("." + path_to_output + "/resampled.temp", shifting_array[i], "." + path_to_output + "/resampled_" + str(i + 1) +".temp")
         audio_functions.resample_specific_audio("." + path_to_output + "/resampled_" + str(i + 1) + ".temp", "." + path_to_output + "/mic_" + str(i + 1) + ".wav", final_audios_samplerate)
         os.remove("." + path_to_output + "/resampled_" + str(i + 1) + ".temp")
     
+    #Delete temporary file "resampled.temp"
     os.remove("." + path_to_output + "/resampled.temp")
     return
     
+'''
+    Generates info file for synthesed mics.
+    Creates file with data:
+    (int)   'microphone numbers'
+    (float) 'circular matrix radius'
+    (int)   'audiowave angle of arrival'
+    (bool)  'audio with reverb'
+'''
 def generate_info_file(mic_num, matrix_radius, audiowave_angle, reverb, path_to_output):
     f = open(path_to_output + "/info.txt", "w")
     f.write(str(mic_num) + "\n")
@@ -325,11 +368,12 @@ def main():
         create_folder("generated_audio/" + folder_name[0])
         create_folder("generated_audio/" + outputfolder)
 
-        #This function is used to fix data when it's length is not 1-second.
+        #This function is used to fix data when it's length is not 1-second. (it's going to be changed)
         audio_functions.edit_audio_length(input_file)
 
+        # reverb is depracated / no longer used. It's too complex to implement
         if (reverb):
-            prepare_audio_signal(input_file, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav")
+            prepare_audio_signal_for_reverb(input_file, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav")
             generate_shifted_audio_files(microphones, uca_radius, arrival_angle, "." + constants.generated_audio_path + "/" + outputfolder + "/reverbed.wav",
                                          constants.generated_audio_path + "/" + outputfolder, final_samplerate)
         else:

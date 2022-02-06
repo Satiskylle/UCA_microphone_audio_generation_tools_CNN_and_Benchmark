@@ -4,6 +4,7 @@ import numpy as np
 from scipy.io import wavfile
 import pickle
 import math
+from sklearn import neural_network
 
 from tqdm import tqdm
 
@@ -18,8 +19,10 @@ class Dataset:
 
 # Neural network class database
 class nn_database:
+  def __init__(self):
+    pass
 
-  def __check_dataset_corruption(samplerate, data, error_description):
+  def __check_dataset_corruption(self, samplerate, data, error_description):
     if (samplerate != len(data)):
       #data is corrupted, only 1second samples are allowed for input.
       if VERBOSE:
@@ -36,8 +39,7 @@ class nn_database:
     
     return False
 
-
-  def __get_info_from_dataset_part_info_file(filepath):
+  def __get_info_from_dataset_part_info_file(self, filepath):
     #Check if info file exists
     if (os.path.isfile(filepath + "/info.txt") == False):
       if VERBOSE:
@@ -52,9 +54,8 @@ class nn_database:
     f.close()
     return True, mics, matrix_radius, doa, reverb
 
-
-  def __load_dataset_part(filepath_to_open):
-    success, mics, matrix_radius, doa, reverb = nn_database.__get_info_from_dataset_part_info_file(filepath_to_open)
+  def __load_dataset_part(self, filepath_to_open):
+    success, mics, matrix_radius, doa, reverb = self.__get_info_from_dataset_part_info_file(filepath_to_open)
     if (success == False):
       return
 
@@ -75,7 +76,7 @@ class nn_database:
       samplerate, data = wavfile.read(filepath_to_open + "/mic_" + str(k + 1) + ".wav")
       if (k == 0): #check only once - if any of the files is corrupted, first is also.
         error_desc = filepath_to_open + "/mic_" + str(k + 1) + ".wav"
-        if nn_database.__check_dataset_corruption(samplerate, data, error_desc):
+        if self.__check_dataset_corruption(samplerate, data, error_desc):
           return
 
       dataset.quasi_mic_samples_img.append(data)
@@ -98,10 +99,10 @@ class nn_database:
     # If the size of every mic is not 44100, there is exception. Dtype is not np.int16 but 'O'.
     return dataset
 
-  def __number_of_dirs(path):
+  def __number_of_dirs(self, path):
     return len([f for f in os.listdir(path) if os.path.isdir(os.path.join(path, f))])
 
-  def __load_dataset_from_dir(dataset_path, start_from=0, dataset_size_to_load=-1):
+  def __load_dataset_from_dir(self, dataset_path, start_from=0, dataset_size_to_load=-1):
     audio_paths_to_load = [f for f in os.listdir(dataset_path) if os.path.isdir(os.path.join(dataset_path, f))]
 
     if (dataset_size_to_load == -1):
@@ -114,7 +115,7 @@ class nn_database:
 
     dataset_total = Dataset()
     for audio in tqdm(audio_paths_to_load, desc="Generating neural network dataset", unit=" file structs", leave=False):
-      dataset_part = nn_database.__load_dataset_part(dataset_path + audio)
+      dataset_part = self.__load_dataset_part(dataset_path + audio)
       if (dataset_part is None):
         continue
 
@@ -123,8 +124,7 @@ class nn_database:
 
     return dataset_total
 
-
-  def __dump_dataset(object_to_dump, dump_filename = ".dumped_dataset"):
+  def __dump_dataset(self, object_to_dump, dump_filename = ".dumped_dataset"):
     if (str(dump_filename).find('/')):
       create_dir = str(dump_filename).rpartition('/')
       try:
@@ -136,40 +136,43 @@ class nn_database:
       pickle.dump(object_to_dump, file)
       file.close()
 
-  #----------------------------------------------------------------------
-
-  def receive_dumped_object(dump_filename = ".dumped_dataset"):
+  def receive_dumped_object(self, dump_filename = ".dumped_dataset"):
     with open(dump_filename, 'rb') as file:
       object_dumped = pickle.load(file)
       file.close()
 
     return object_dumped
 
-
   '''
   Creates database files.
   If not specified, creates one big database.
   '''
-  def create_databases(generated_audio_files, dataset_pickle_filename, size_of_databases=-1):
-    num_of_iters = math.ceil(nn_database.__number_of_dirs(generated_audio_files) / size_of_databases)
+  def create_databases(self, generated_audio_files, dataset_pickle_filename, size_of_databases=-1):
+    num_of_iters = math.ceil(self.__number_of_dirs(generated_audio_files) / size_of_databases)
     if (num_of_iters < 0):
       num_of_iters = 1
 
     for next_database in tqdm(range(0, num_of_iters), desc="Datasets in directory", unit=" datasets", leave=False):
-      dataset_total = nn_database.__load_dataset_from_dir(generated_audio_files, start_from=size_of_databases*next_database, dataset_size_to_load=size_of_databases)
+      dataset_total = self.__load_dataset_from_dir(generated_audio_files, start_from=size_of_databases*next_database, dataset_size_to_load=size_of_databases)
       if (dataset_total == None):
         return
 
-      nn_database.__dump_dataset(dataset_total, dataset_pickle_filename + "_" + str(next_database))
+      self.__dump_dataset(dataset_total, dataset_pickle_filename + "_" + str(next_database))
+
+  #----------------------------------------------------------------------
 
 def main():
 
   #This is sample
   #dataset_total = nn_database.load_dataset("generated_audio/test_delete_me_3/")
   #nn_database.dump_dataset(dataset_total, ".normal_database")
+
+  neural_network_database = nn_database()
   dirs = os.listdir("generated_audio/")
   for i in tqdm(dirs, desc="Total neural network dataset processed", unit=" datasets"):
-    nn_database.create_databases("generated_audio/" + i + "/", "X:/generated_audio/" + i + "/.pickled_database", size_of_databases=500)
+    neural_network_database.create_databases(generated_audio_files="generated_audio/" + i + "/",
+                                              dataset_pickle_filename="X:/generated_audio/" + i + "/.pickled_database",
+                                              size_of_databases=500)
 
 
 if __name__ == "__main__":

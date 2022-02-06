@@ -93,7 +93,7 @@ def main():
   #load best weights before prediction
   model.load_weights(checkpoint_filepath)
 
-  #predict first and last
+  #predict first and last - change it
   to_predict = x_dataset[0, 0:8, 0:441, 0]
   to_predict = to_predict.reshape(1, 8, 441, 1)
   prediction = model.predict(to_predict)

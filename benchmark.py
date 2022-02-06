@@ -27,7 +27,7 @@ Analyze all audio signal for signal+noise level
 estimate snr ratio
 
 SNR method 2 - we just make special snr from audio (assuing, that it's clean signal),
-and we add some amount of noise to create specific snr.
+and we add some amount of noise to create specific snr. #Edit: This is used later.
 '''
 
 def signalPower(x):
@@ -40,10 +40,10 @@ def add_noise_to_signal(rec_signal, noise, wanted_snr):
 
     # normalizing noisy signal to get unity power then multiplying it by the new power to achieve the required SNR
     noised_signal = (noise / np.sqrt(noise_power)) * np.sqrt(pn);
-    noised_signal_power = signalPower(noised_signal)
-    SNR = 10 * log10(signal_power / noised_signal_power) #just test
+    #noised_signal_power = signalPower(noised_signal)
+    #SNR = 10 * log10(signal_power / noised_signal_power) #just test
 
-    return rec_signal + noised_signal, SNR #return noised original signal and computed snr
+    return rec_signal + noised_signal, #SNR #return noised original signal and computed snr #edit-without computed snr.
 
 
 def prepare_signal(microphones=8, noise_dbm = 0, reverbation = 0):
@@ -201,106 +201,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-    #copy
-    # def compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate):
-    # # This approach is created into given way:
-    # # We are estimating for every pair of microphone the GCC-PHAT correlation
-    # # After that, we're searching for the pair, which peak amplitude is the most in the middle
-    # # Last step is computing difference from middle to peak and write that into array
-    # #rec signal is an array [number_of_channels][sample_size]
-    # plt.figure(3)
-
-    # detection_angle = 360 / microphones
-    # corr_peaks = []
-    # for i in range (0, microphones - 1):
-    #     # plt.subplot(microphones, 1, i + 1)
-    #     corr = xcorr_freq(signal[i], signal[i+1])
-    #     corr_peaks.append(np.argmax(corr))
-    #     # plt.plot(corr)
-    #     # doa.append()
-
-    
-    # corr = xcorr_freq(signal[microphones - 1], signal[0])
-    # corr_peaks.append(np.argmax(corr))
-    # length_of_signal_in_samples = len(signal[0])
-
-    # print(corr_peaks)
-    
-    # signal_length = len(signal[0])
-    # current_best_peak_index = 0
-    # for i in range (0, len(corr_peaks)): 
-    #     if abs(corr_peaks[i] - signal_length) < abs(corr_peaks[current_best_peak_index] - signal_length):
-    #         current_best_peak_index = i
-    
-    # first_best_peak = current_best_peak_index
-    # second_best_peak = (current_best_peak_index + microphones // 2) % microphones
-    # print("current_best_peeak index pair: " + str(first_best_peak) + " and " + str(second_best_peak))
-    # best_peaks_correlation_peak = np.argmax(xcorr_freq(signal[first_best_peak], signal[second_best_peak]))
-    # print("correlation between part: " + str(best_peaks_correlation_peak))
-    # microphone_sound_arrival_two_pairs_corr_difference = best_peaks_correlation_peak - len(signal[0])
-    # microphone_sound_arrival_pair = first_best_peak if microphone_sound_arrival_two_pairs_corr_difference > 0 else second_best_peak
-    # print("Assumed microphone pair nr: " + str(microphone_sound_arrival_pair) + " (readed from 0), angle: <" + \
-    #                                         str(microphone_sound_arrival_pair * 360 / microphones) + "; " + \
-    #                                         str((microphone_sound_arrival_pair + 1) * 360 / microphones) + ")")
-    # #microphone_sound_arrival_pair_corr_difference = len(signal[0]) - np.argmax(xcorr_freq(signal[microphone_sound_arrival_pair], \
-    # #                                                                                      signal[microphone_sound_arrival_pair + 1]))
-
-    # estimated_angle = (((microphone_sound_arrival_pair * 360 / microphones) + ((microphone_sound_arrival_pair + 1) * 360 / microphones)) / 2)
-    # print("Estimated angle based on radius, samplerate and gccphat. There can be big errors if some of the values are ridiculous. Estimated angle: " + \
-    #        str(estimated_angle))
-    
-    # plt.title("GCC PHAT")
-    # plt.plot(xcorr_freq(signal[microphone_sound_arrival_pair], signal[microphone_sound_arrival_pair + 1]))
-    # plt.text(0, 0, "Estimated angle based on radius, samplerate and gccphat.\nThere can be big errors if some of the values are ridiculous.\n" + \
-    #                "Estimated angle: " + str(estimated_angle))
-
-
-
-
-    # def compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate):
-    # # This approach is created into given way:
-    # # We are estimating for every pair of microphone the GCC-PHAT correlation
-    # # After that, we're searching for the pair, which peak amplitude is the most in the middle
-    # # Last step is computing difference from middle to peak and write that into array
-    # #rec signal is an array [number_of_channels][sample_size]
-    # plt.figure(3)
-
-    # detection_angle = 360 / microphones
-    # corr_peaks = []
-    # for i in range (0, microphones - 1):
-    #     # plt.subplot(microphones, 1, i + 1)
-    #     corr = xcorr_freq(signal[i], signal[i+1])
-    #     corr_peaks.append(np.argmax(corr))
-    #     # plt.plot(corr)
-    #     # doa.append()
-
-    
-    # corr = xcorr_freq(signal[microphones - 1], signal[0])
-    # corr_peaks.append(np.argmax(corr))
-
-    # print(corr_peaks)
-    
-    # signal_length = len(signal[0])
-    # current_best_peak_index = 0
-    # for i in range (0, len(corr_peaks)): 
-    #     if abs(corr_peaks[i] - signal_length) < abs(corr_peaks[current_best_peak_index] - signal_length):
-    #         current_best_peak_index = i
-    
-    # print("current_best_peak index pair: " + str(current_best_peak_index))
-
-    # estimated_angle = "from " + str(current_best_peak_index * 360 / microphones) + " to " + str((current_best_peak_index + 1) * 360 / microphones)
-    # print("Estimated angle based on radius, samplerate and gccphat. Estimated angle: " + str(estimated_angle))
-    
-    # estimate = "closer to first angle" if corr_peaks[current_best_peak_index] > signal_length else "closer to second angle"
-
-    # plt.title("GCC PHAT")
-    # plt.plot(xcorr_freq(signal[current_best_peak_index], signal[current_best_peak_index + 1]))
-    # plt.text(0, 0, "Estimated angle based on radius, samplerate and gccphat.\n" + \
-    #                "Estimated angle: " + str(estimated_angle) + " probably " + estimate + "\n")
