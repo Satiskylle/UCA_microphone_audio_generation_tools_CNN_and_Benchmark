@@ -16,6 +16,7 @@ class Dataset:
                                           #now, it is 441samples_ch_0, 441samples_ch_1, 441samples_ch_2...
                                           #   ...next 441_samples_ch_0, 441_samples_ch1,
   target = np.array([],dtype=np.int32)
+  target_float = np.array([],dtype=np.float)
 
 # Neural network class database
 class nn_database:
@@ -49,7 +50,7 @@ class nn_database:
     f = open(filepath + "/info.txt", 'r')
     mics = int(f.readline())
     matrix_radius = float(f.readline())
-    doa = int(f.readline()) // (360//mics)
+    doa = int(f.readline()) #// (360//mics) //READ FULL, not only sector of the circle.
     reverb = bool(int(f.readline()))
     f.close()
     return True, mics, matrix_radius, doa, reverb
@@ -171,7 +172,7 @@ def main():
   dirs = os.listdir("generated_audio/")
   for i in tqdm(dirs, desc="Total neural network dataset processed", unit=" datasets"):
     neural_network_database.create_databases(generated_audio_files="generated_audio/" + i + "/",
-                                              dataset_pickle_filename="X:/generated_audio/" + i + "/.pickled_database",
+                                              dataset_pickle_filename="X:/generated_audio_5_SNR/" + i + "/.pickled_database",
                                               size_of_databases=500)
 
 
