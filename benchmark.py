@@ -1,14 +1,25 @@
-from math import inf, sqrt, log10, cos
+from math import inf, sqrt, log10, cos, acos
+from tokenize import Double
 from numpy.core.fromnumeric import argmax
 from numpy.lib.function_base import angle
 import pyargus
 from pyargus.directionEstimation import *
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import signal
 from scipy.fftpack import rfft, irfft, fftfreq, fft, ifft
 from scipy.io import wavfile
 from scipy.signal.filter_design import normalize
+import statistics as stat
+import neural_network_dataset_prepare as nndp
+import neural_network as nn
+from tqdm import tqdm
+import os 
+
+
+
+SHOW_MATLAB_VERBOSE_PLOTS = False
 
 def read_info_file(path):
     f = open(path, 'r')
@@ -43,30 +54,32 @@ def add_noise_to_signal(rec_signal, noise, wanted_snr):
     #noised_signal_power = signalPower(noised_signal)
     #SNR = 10 * log10(signal_power / noised_signal_power) #just test
 
-    return rec_signal + noised_signal, #SNR #return noised original signal and computed snr #edit-without computed snr.
+    return rec_signal + noised_signal#, #SNR #return noised original signal and computed snr #edit-without computed snr.
 
 
-def prepare_signal(microphones=8, noise_dbm = 0, reverbation = 0):
+def prepare_signal(signal_path, microphones=8, noise_dbm = 0, reverbation = 0):
     rec_signal = []
 
     for i in range(1, microphones + 1):
-        audiofile_samplerate, audiofile_data_original = wavfile.read("./generated_audio/bed/0a7c2a8d_nohash_0/mic_" + str(i) + ".wav")
+        audiofile_samplerate, audiofile_data_original = wavfile.read(signal_path + "/mic_" + str(i) + ".wav")
         rec_signal.append(audiofile_data_original)
         
     #SCALING SIGNAL TO -1; 1
     rec_signal = rec_signal / np.max(rec_signal)
-    plt.subplot(3,1,1)
-    plt.title("Original signal")
-    plt.plot(rec_signal[0])
+    
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.subplot(3,1,1)
+        plt.title("Original signal")
+        plt.plot(rec_signal[0])
     
     # TODO add types of noises.
-    noise = np.random.normal(0,np.sqrt(10**-2),(microphones,len(rec_signal[0])))        #create noise
-    rec_signal_noised, received_snr = add_noise_to_signal(rec_signal, noise, noise_dbm)
+    noise = np.random.normal(0, np.sqrt(10**-2), (microphones, len(rec_signal[0])))
+    rec_signal_noised = add_noise_to_signal(rec_signal, noise, noise_dbm)
 
-    plt.subplot(3,1,3)
-    plt.title("Signal with added noise. SNR: " + str(received_snr) + " dB")
-    plt.plot(rec_signal_noised[0])
-    #plt.show()
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.subplot(3,1,3)
+        plt.title("Signal with added noise. SNR: " + str(noise_dbm) + " dB")
+        plt.plot(rec_signal_noised[0])
 
     return rec_signal_noised, audiofile_samplerate
 
@@ -96,21 +109,31 @@ def compute_doa_via_MUSIC(signal, M=8, r=0.034, realdoa = 34):
     num_of_microphones = M
     radius_of_uca = r 
     incident_angles= np.arange(0, 360, 1)
-    #pyargus.directionEstimation.gen_uca_scanning_vectors()
+    
     uca_scanning_vectors = pyargus.directionEstimation.gen_uca_scanning_vectors(num_of_microphones, radius_of_uca, incident_angles)
       
     # DOA estimation           
-    MUSIC = pyargus.directionEstimation.DOA_MUSIC(R, uca_scanning_vectors, signal_dimension = M - 2)
-    #DOA_plot(MUSIC, incident_angles, log_scale_min = -50)
-    plt.title("MUSIC")
-    plt.plot(realdoa, max(MUSIC), "r*")
+    MUSIC = pyargus.directionEstimation.DOA_MUSIC(R, uca_scanning_vectors, signal_dimension = 1, angle_resolution = 1)#M - 3)
+
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.title("MUSIC")
+        plt.plot(realdoa, max(abs(MUSIC)), "r*")
+
     first_peak = argmax(MUSIC)
     if first_peak > 180:
         first_peak -= 180
-    plt.text(0, 0, "MUSIC: Real DOA: " + str(realdoa) + " Estimated DOA: " + str(first_peak) + " and/or " + str(first_peak + 180) + "\n")
-    plt.plot(abs(MUSIC))
-    #plt.show()
 
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.plot(abs(MUSIC))
+        ax = plt.gca()
+        xl, xr = ax.get_xlim()
+        yd, yh = ax.get_ylim()
+        plt.text(xl, yh, "MUSIC: Real DOA: " + str(realdoa) + " Estimated DOA: " + str(first_peak) + " and/or " + str(first_peak + 180) + "\n")
+        # print("MUSIC: Real DOA: " + str(realdoa) + " Estimated DOA: " + str(first_peak) + " and/or " + str(first_peak + 180) + "\n")
+
+    estimated_doa = first_peak
+    estimated_sec_doa = first_peak + 180
+    return estimated_doa, estimated_sec_doa
 
 # ---------------------------------------------------------------------------------------------------------
 
@@ -126,7 +149,7 @@ def xcorr_freq(s1,s2):
     f_s = f_s1 * f_s2c
     denom = abs(f_s)
     denom[denom < 1e-6] = 1e-6
-    f_s = f_s / denom  # This line is the only difference between GCC-PHAT and normal cross correlation. if commented - xcorr, else phat
+    f_s = f_s / denom  # This line is the only difference between GCC-PHAT and normal cross correlation. if commented - xcorr, else phat (weight scale funct in GCC)
     return np.abs(ifft(f_s))[1:]
 
 def compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate):
@@ -150,7 +173,7 @@ def compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate):
     corr_peaks.append(np.argmax(corr))
     length_of_signal_in_samples = len(signal[0])
 
-    print(corr_peaks)
+    # print(corr_peaks)
     
     signal_length = len(signal[0])
     current_best_peak_index = 0
@@ -160,44 +183,153 @@ def compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate):
     
     first_best_peak = current_best_peak_index
     second_best_peak = (current_best_peak_index + microphones // 2) % microphones
-    print("current_best_peeak index pair: " + str(first_best_peak) + " and " + str(second_best_peak))
+    # print("current_best_peak index pair: " + str(first_best_peak) + " and " + str(second_best_peak))
     best_peaks_correlation_peak = np.argmax(xcorr_freq(signal[first_best_peak], signal[second_best_peak]))
-    print("correlation between part: " + str(best_peaks_correlation_peak))
+    # print("correlation between part: " + str(best_peaks_correlation_peak))
     microphone_sound_arrival_two_pairs_corr_difference = best_peaks_correlation_peak - len(signal[0])
     microphone_sound_arrival_pair = first_best_peak if microphone_sound_arrival_two_pairs_corr_difference > 0 else second_best_peak
-    print("Assumed microphone pair nr: " + str(microphone_sound_arrival_pair) + " (readed from 0), angle: <" + \
-                                            str(microphone_sound_arrival_pair * 360 / microphones) + "; " + \
-                                            str((microphone_sound_arrival_pair + 1) * 360 / microphones) + ")")
-    #microphone_sound_arrival_pair_corr_difference = len(signal[0]) - np.argmax(xcorr_freq(signal[microphone_sound_arrival_pair], \
-    #                                                                                      signal[microphone_sound_arrival_pair + 1]))
+    # print("Assumed microphone pair nr: " + str(microphone_sound_arrival_pair) + " (numerated from 0), angle: <" + \
+    #                                        str(microphone_sound_arrival_pair * 360 / microphones) + "; " + \
+    #                                        str((microphone_sound_arrival_pair + 1) * 360 / microphones) + ")")
 
+    #Angle may be better determined by computing correct angle based on V of sound: acos(v*samples_diff / distance_between_pair)
     estimated_angle = (((microphone_sound_arrival_pair * 360 / microphones) + ((microphone_sound_arrival_pair + 1) * 360 / microphones)) / 2)
     text_to_print = "Estimated angle based on radius, samplerate and gccphat.\n There can be big errors if some of the values are ridiculous.\n Angle between: " + \
            str((microphone_sound_arrival_pair * 360 / microphones)) + " and " + str((microphone_sound_arrival_pair + 1) * 360 / microphones) + \
                " center: " + str(estimated_angle) + "\n"
-    print(text_to_print)
+    #  print(text_to_print)
     
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.title("GCC PHAT")
+        plt.plot(xcorr_freq(signal[microphone_sound_arrival_pair], signal[microphone_sound_arrival_pair + 1]))
+        ax = plt.gca()
+        xl, xr = ax.get_xlim()
+        yd, yh = ax.get_ylim()
+        plt.text(xl, yh, text_to_print)
 
-    plt.title("GCC PHAT")
-    plt.plot(xcorr_freq(signal[microphone_sound_arrival_pair], signal[microphone_sound_arrival_pair + 1]))
-    plt.text(0, 0, text_to_print)
+    return estimated_angle
 
-def compute_doa_via_neural_network(signal, microphones, radius):
-    #TODO
-    pass
 # ---------------------------------------------------------------------------------------------------------
 
+def neural_network_get_doa_from_file(model, signal_filepath):    
+    nndp_class = nndp.nn_database()
+    nndp_dataset = nndp.Dataset()
+    operation_successful, microphones, matrix_radius, doa, reverb = nndp_class.get_info_from_dataset_part_info_file(signal_filepath)
+    nndp_dataset = nndp_class.load_dataset_part(signal_filepath)
+
+    if operation_successful is False or nndp_dataset is None:
+        # SystemExit("Failure in computing dataset in neural network operations")
+        return None, None
+
+    predicted_doas = []
+    for i in range (0, 100):
+        to_predict = nndp_dataset.batches[i, 0:8, 0:441, 0]
+        to_predict = to_predict.reshape(1,8,441,1)
+        model_predicted_raw = model.predict(to_predict)
+        predicted_doa = np.round((model_predicted_raw * 180) + 180, decimals=0).astype(np.int32)
+        predicted_doas.append(predicted_doa)
+
+    true_doa = nndp_dataset.target
+
+    return predicted_doas, true_doa
+
+def compute_doa_via_Neural_Network(model, filepath):
+    predicted_doas, true_doa = neural_network_get_doa_from_file(model, filepath)
+
+    if predicted_doas is None and true_doa is None:
+        return None, None
+    
+    predicted_doas_list = []
+    for i in range (0, 100):
+        predicted_doas_list.append(predicted_doas[i][0][0])
+
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        n = plt.hist(predicted_doas_list, bins=360, range=[0, 359], density=True)
+
+    hp_doa = stat.mode(predicted_doas_list)     #dominanta
+    mean_doa = stat.mean(predicted_doas_list)
+
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.title("Neural Network")
+        ax = plt.gca()
+        xl, xr = ax.get_xlim()
+        yd, yh = ax.get_ylim()
+        plt.text(xl, yh, "Highest probability doa: " + str(hp_doa) + ", doa mean: " + str(mean_doa))
+        plt.show(block=True)
+    
+    estimated_doa = predicted_doas_list[0]
+    estimated_doa_from_all = hp_doa
+    return estimated_doa, estimated_doa_from_all
+
+# ---------------------------------------------------------------------------------------------------------
+
+def compute_doa_from_all_algorithms(filepath, snr_dbm, neural_network_model):
+    microphones, radius, realdoa = read_info_file(filepath + "/info.txt")
+    signal, signal_samplerate = prepare_signal(filepath, microphones, snr_dbm)
+
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.figure(2)
+        plt.subplot(3, 1, 1)
+
+    music_estimated_doa, music_estimated_sec_doa = compute_doa_via_MUSIC(signal, microphones, radius, realdoa)
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.subplot(3, 1, 2)
+
+    gcc_phat_estimated_angle = compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate)
+    if SHOW_MATLAB_VERBOSE_PLOTS:
+        plt.subplot(3, 1, 3)
+
+    nn_estimated_doa, nn_estimated_doa_from_all = compute_doa_via_Neural_Network(neural_network_model, filepath)
+    return realdoa, music_estimated_doa, music_estimated_sec_doa, gcc_phat_estimated_angle, nn_estimated_doa, nn_estimated_doa_from_all
+
 def main():
-    microphones, radius, realdoa = read_info_file("./generated_audio/bed/0a7c2a8d_nohash_0/info.txt")
-    signal, signal_samplerate = prepare_signal(microphones, 0)
-    plt.figure(2)
-    plt.subplot(3, 1, 1)
-    compute_doa_via_MUSIC(signal, microphones, radius, realdoa)
-    plt.subplot(3, 1, 2)
-    compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate)
-    plt.subplot(3, 1, 3)
-    compute_doa_via_neural_network(signal, microphones, radius)
-    plt.show(block=True)
+    model = nn.create_keras_model()
+    checkpoint_filepath = 'tmp/checkpoint'
+    model.load_weights(checkpoint_filepath)
+    
+    # all_database_folders = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/")
+    # all_database_list = []
+    # for i in tqdm(all_database_folders, "Reading all files to compute"):
+    #     database_list = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/" + i)
+    #     for a in database_list:
+    #         all_database_list.append(str(i) + "/" + a)
+
+    grand_filepath = "./generated_audio/yes/"
+    filepath_database_list = os.listdir(grand_filepath)
+    skipped = 0
+
+    for current_snr in tqdm([-20, -10, 0, 20], desc="Total benchmark process"):                  
+        dictionary_result_data = {"Dirname":[],"SNR":[],"Real DOA":[],"GCC_PHAT":[],"MUSIC DOA 1":[],"MUSIC DOA 2":[],"Neural_network":[],"Neural_network_hist":[]}
+       
+        for next_folder_path in tqdm(filepath_database_list, desc="Estimating DOA's"):
+            next_test_dir = grand_filepath + next_folder_path
+
+            if next_folder_path[1] == 'p':  #skip if pickled database
+                continue
+
+            snr = current_snr
+
+            real_doa, music_doa, music_sec_doa, gcc_phat_doa, nn_doa, nn_doa_from_all = compute_doa_from_all_algorithms(next_test_dir, snr, model)
+            if nn_doa is None or nn_doa_from_all is None:
+                skipped = skipped + 1
+                continue
+
+            dictionary_result_data["Dirname"].append(next_folder_path)
+            dictionary_result_data["SNR"].append(snr)
+            dictionary_result_data["Real DOA"].append(real_doa)
+            dictionary_result_data["GCC_PHAT"].append(gcc_phat_doa)
+            dictionary_result_data["MUSIC DOA 1"].append(music_doa)
+            dictionary_result_data["MUSIC DOA 2"].append(music_sec_doa)
+            dictionary_result_data["Neural_network"].append(nn_doa)
+            dictionary_result_data["Neural_network_hist"].append(nn_doa_from_all)
+
+            excel_df = pd.DataFrame(data = dictionary_result_data, index=None)
+            excel_df.to_excel("./benchmark_results_snr_" + str(snr) + ".xlsx", "Results")
+            # print("REAL:", real_doa)
+            # print("MUSIC:", music_doa, music_sec_doa)
+            # print("GCC_PHAT:", gcc_phat_doa)
+            # print("Neural Network:", nn_doa, nn_doa_from_all)
+            print("Total skipped so far: " + str(skipped))
 
 if __name__ == "__main__":
     main()

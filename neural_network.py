@@ -39,21 +39,23 @@ def show_results(history, epochs):
 def create_keras_model():
   model = keras.Sequential()
   
-  #batch 441, 100 rows, 8 cols, 1 channel, so there is 100 samples with 8 channel each,  
+  #batch 441, 100 rows, 8 cols, 1 channel, so there is 100 samples with 8 channel each, 
+
+
   model.add(layers.Conv2D(16, (2, 1), padding='valid', activation='relu', input_shape=(8, 441, 1))) #160
-  model.add(layers.Conv2D(8, (2, 1), padding='valid', activation='relu'))  #80
+  model.add(layers.Conv2D(8, (2, 1), padding='valid', activation='relu'))                           #80
   model.add(layers.MaxPooling2D(pool_size=(1,4)))
-  model.add(layers.Conv2D(16, 1, padding='valid', activation='relu'))       #20
-  model.add(layers.Conv2D(16, 1, padding='valid', activation='relu'))        #8
+  model.add(layers.Conv2D(16, 1, padding='valid', activation='relu'))                               #20
+  model.add(layers.Conv2D(16, 1, padding='valid', activation='relu'))                               #8
   model.add(layers.MaxPooling2D(pool_size=(1,2)))
-  model.add(layers.Conv2D(16, 1, padding='valid', activation='relu'))        #8
+  model.add(layers.Conv2D(16, 1, padding='valid', activation='relu'))                               #8
   model.add(layers.Flatten())
   model.add(layers.Dense(128, activation='relu'))
-  model.add(layers.Dropout(0.1))
-  model.add(layers.Dense(1024, activation='relu'))    #was 1024
-  model.add(layers.Dropout(0.1))
-  model.add(layers.Dense(512, activation='sigmoid'))  #was 512
-  model.add(layers.Dropout(0.1))
+  model.add(layers.Dropout(0.15))
+  model.add(layers.Dense(1024, activation='relu'))                                                  #was 1024
+  model.add(layers.Dropout(0.15))
+  model.add(layers.Dense(512, activation='sigmoid'))                                                #was 512
+  model.add(layers.Dropout(0.15))
   model.add(layers.Dense(1, activation='tanh'))
   model.summary()
 
@@ -97,7 +99,7 @@ def main():
   # X:/generated_audio_0_SNR/bird/.pickled_database_0 to 3
   # X:/generated_audio_0_SNR/cat/.pickled_database_0 to 3
   model = create_keras_model()
-  epochs = 20
+  epochs = 10
   checkpoint_filepath = 'tmp/checkpoint'
   model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_filepath,
                                                                   save_weights_only=True,
@@ -107,14 +109,16 @@ def main():
 
   model.load_weights(checkpoint_filepath) #load weights for further training
   
-  audio_paths_which_can_be_loaded = [f for f in os.listdir("X:/generated_audio_0_SNR") if os.path.isdir(os.path.join("X:/generated_audio_0_SNR", f))]
-  for next_pickle_folder in range (19, 30):
-    pickle_path = "X:/generated_audio_0_SNR/" + audio_paths_which_can_be_loaded[next_pickle_folder]
+  path_containing_dataset = "X:/generated_audio_0SNR_pickle/"
+  audio_paths_which_can_be_loaded = [f for f in os.listdir(path_containing_dataset) if os.path.isdir(os.path.join(path_containing_dataset, f))]
+  for next_pickle_folder in range (29, 30):
+    pickle_path = path_containing_dataset + audio_paths_which_can_be_loaded[next_pickle_folder]
     pickles = [f for f in os.listdir(pickle_path) if not os.path.isdir(os.path.join(pickle_path, f))]
     for next_pickle in pickles:
       next_pickle_path = pickle_path + '/' + next_pickle
       print("Running pickle " + next_pickle_path)
-      train_network(model, epochs, model_checkpoint_callback, next_pickle_path)
+      history = train_network(model, epochs, model_checkpoint_callback, next_pickle_path)
+      show_results(history, epochs)
 
   #history = train_network(model, epochs, model_checkpoint_callback, "X:/generated_audio_0_SNR/cat/.pickled_database_1")
 

@@ -40,7 +40,7 @@ class nn_database:
     
     return False
 
-  def __get_info_from_dataset_part_info_file(self, filepath):
+  def get_info_from_dataset_part_info_file(self, filepath):
     #Check if info file exists
     if (os.path.isfile(filepath + "/info.txt") == False):
       if VERBOSE:
@@ -55,8 +55,8 @@ class nn_database:
     f.close()
     return True, mics, matrix_radius, doa, reverb
 
-  def __load_dataset_part(self, filepath_to_open):
-    success, mics, matrix_radius, doa, reverb = self.__get_info_from_dataset_part_info_file(filepath_to_open)
+  def load_dataset_part(self, filepath_to_open):
+    success, mics, matrix_radius, doa, reverb = self.get_info_from_dataset_part_info_file(filepath_to_open)
     if (success == False):
       return
 
@@ -116,7 +116,7 @@ class nn_database:
 
     dataset_total = Dataset()
     for audio in tqdm(audio_paths_to_load, desc="Generating neural network dataset", unit=" file structs", leave=False):
-      dataset_part = self.__load_dataset_part(dataset_path + audio)
+      dataset_part = self.load_dataset_part(dataset_path + audio)
       if (dataset_part is None):
         continue
 
@@ -169,10 +169,11 @@ def main():
   #nn_database.dump_dataset(dataset_total, ".normal_database")
 
   neural_network_database = nn_database()
-  dirs = os.listdir("generated_audio/")
+  generated_audios_input_path = "X:/generated_audio_0SNR/generated_audio/"
+  dirs = os.listdir(generated_audios_input_path)
   for i in tqdm(dirs, desc="Total neural network dataset processed", unit=" datasets"):
-    neural_network_database.create_databases(generated_audio_files="generated_audio/" + i + "/",
-                                              dataset_pickle_filename="X:/generated_audio_5_SNR/" + i + "/.pickled_database",
+    neural_network_database.create_databases(generated_audio_files = generated_audios_input_path + i + "/",
+                                              dataset_pickle_filename = "X:/generated_audio_0SNR_pickle/" + i + "/.pickled_database",
                                               size_of_databases=500)
 
 
