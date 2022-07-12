@@ -8,14 +8,14 @@ import sys
 from tqdm import tqdm
 import random
 
-#TODO: Change doxygen comments into python one
+#TODO - Low Priority: Change doxygen comments into python one
 
 #--------------------------------------------------------------------------
-# defines (constants)
+# Defines (Global Constants, legacy)
 MINIMUM_MICROPHONES_IN_ARRAY = 8 #not tested for other than 8
 
 #--------------------------------------------------------------------------
-# constants
+# Constants
 
 class constants:
     log_verbose_mode = 0

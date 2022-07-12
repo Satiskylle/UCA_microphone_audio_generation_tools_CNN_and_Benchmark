@@ -50,7 +50,7 @@ class nn_database:
     f = open(filepath + "/info.txt", 'r')
     mics = int(f.readline())
     matrix_radius = float(f.readline())
-    doa = int(f.readline()) #// (360//mics) //READ FULL, not only sector of the circle.
+    doa = int(f.readline())
     reverb = bool(int(f.readline()))
     f.close()
     return True, mics, matrix_radius, doa, reverb
@@ -93,7 +93,6 @@ class nn_database:
       #                             ...                                  ...
       #                       CH7 - 441 samples,                     CH7 - 441 samples,
       #
-      #PL: Ok, jest 100 kawałków które maja 8kanałow po kolei posiadajace po 441 probek
     dataset.batches = np.asarray(dataset.batches) #, dtype = np.int32) #make batches an array #should be np.int16
     dataset.batches = dataset.batches.reshape(100, mics, 441, 1)    #, order='F')
 

@@ -18,7 +18,6 @@ from tqdm import tqdm
 import os 
 
 
-
 SHOW_MATLAB_VERBOSE_PLOTS = False
 
 def read_info_file(path):
@@ -51,10 +50,8 @@ def add_noise_to_signal(rec_signal, noise, wanted_snr):
 
     # normalizing noisy signal to get unity power then multiplying it by the new power to achieve the required SNR
     noised_signal = (noise / np.sqrt(noise_power)) * np.sqrt(pn);
-    #noised_signal_power = signalPower(noised_signal)
-    #SNR = 10 * log10(signal_power / noised_signal_power) #just test
 
-    return rec_signal + noised_signal#, #SNR #return noised original signal and computed snr #edit-without computed snr.
+    return rec_signal + noised_signal
 
 
 def prepare_signal(signal_path, microphones=8, noise_dbm = 0, reverbation = 0):
@@ -162,11 +159,8 @@ def compute_doa_via_GCC_PHAT(signal, microphones, radius, signal_samplerate):
     detection_angle = 360 / microphones
     corr_peaks = []
     for i in range (0, microphones - 1):
-        # plt.subplot(microphones, 1, i + 1)
         corr = xcorr_freq(signal[i], signal[i+1])
         corr_peaks.append(np.argmax(corr))
-        # plt.plot(corr)
-        # doa.append()
 
     
     corr = xcorr_freq(signal[microphones - 1], signal[0])
@@ -218,7 +212,7 @@ def neural_network_get_doa_from_file(model, signal_filepath):
     nndp_dataset = nndp_class.load_dataset_part(signal_filepath)
 
     if operation_successful is False or nndp_dataset is None:
-        # SystemExit("Failure in computing dataset in neural network operations")
+        # Failure in computing dataset in neural network operations
         return None, None
 
     predicted_doas = []
@@ -286,19 +280,12 @@ def main():
     model = nn.create_keras_model()
     checkpoint_filepath = 'tmp/checkpoint'
     model.load_weights(checkpoint_filepath)
-    
-    # all_database_folders = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/")
-    # all_database_list = []
-    # for i in tqdm(all_database_folders, "Reading all files to compute"):
-    #     database_list = os.listdir("./Database/tensorflow_recognition_challenge/train/audio/" + i)
-    #     for a in database_list:
-    #         all_database_list.append(str(i) + "/" + a)
 
     grand_filepath = "./generated_audio/yes/"
     filepath_database_list = os.listdir(grand_filepath)
     skipped = 0
 
-    for current_snr in tqdm([-20, -10, 0, 20], desc="Total benchmark process"):                  
+    for current_snr in tqdm([-20, -10, 0, 10, 20], desc="Total benchmark process"):                  
         dictionary_result_data = {"Dirname":[],"SNR":[],"Real DOA":[],"GCC_PHAT":[],"MUSIC DOA 1":[],"MUSIC DOA 2":[],"Neural_network":[],"Neural_network_hist":[]}
        
         for next_folder_path in tqdm(filepath_database_list, desc="Estimating DOA's"):
@@ -325,10 +312,6 @@ def main():
 
             excel_df = pd.DataFrame(data = dictionary_result_data, index=None)
             excel_df.to_excel("./benchmark_results_snr_" + str(snr) + ".xlsx", "Results")
-            # print("REAL:", real_doa)
-            # print("MUSIC:", music_doa, music_sec_doa)
-            # print("GCC_PHAT:", gcc_phat_doa)
-            # print("Neural Network:", nn_doa, nn_doa_from_all)
             print("Total skipped so far: " + str(skipped))
 
 if __name__ == "__main__":
